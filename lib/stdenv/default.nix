@@ -4,8 +4,6 @@
   targetPlatform,
   ...
 }: let
-  lib = nixpkgs.lib;
-
   cacheNixConfigPart = {
     extra-substituters = ["https://ardos-os.cachix.org"];
     extra-trusted-public-keys = ["ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s="];
@@ -18,47 +16,88 @@
   # Multiple -e expressions are used to cover both the current gnu-config version
   # of config.sub and the slightly older version bundled inside glibc itself.
   # Unmatched expressions are silently ignored by sed.
-  patchAutotoolsConfig = preConfigure: ''
-    find . -name config.sub -exec sed -i {} \
-      -e 's/| redox\* | bme\*/| redox* | ardos* | bme*/' \
-      -e 's/| linux-relibc\*- | linux-uclibc\*- )/| linux-relibc*- | linux-uclibc*- | linux-ardos*- )/' \
-      -e 's/| rtmk-nova\*)/| rtmk-nova* | ardos*)/' \
-      -e 's/gnu\* | android\*/gnu* | android* | ardos*/' \
-      -e 's/linux-android\* | linux-newlib\*/linux-android* | linux-ardos* | linux-newlib*/' \;
-  '' + (if preConfigure == null then "" else preConfigure);
-
-  # Wrap stdenv to automatically patch config.sub for autotools packages
-  wrapStdenvForArdos = stdenv: stdenv // {
-    mkDerivation = args: stdenv.mkDerivation (
-      if builtins.isFunction args
-      then (finalAttrs: let
-        attrs = args finalAttrs;
-      in attrs // {
-        preConfigure = patchAutotoolsConfig (attrs.preConfigure or null);
-      })
-      else args // {
-        preConfigure = patchAutotoolsConfig (args.preConfigure or null);
-      }
+  patchAutotoolsConfig = preConfigure:
+    ''
+      find . -name config.sub -exec sed -i {} \
+        -e 's/| redox\* | bme\*/| redox* | ardos* | bme*/' \
+        -e 's/| linux-relibc\*- | linux-uclibc\*- )/| linux-relibc*- | linux-uclibc*- | linux-ardos*- )/' \
+        -e 's/| rtmk-nova\*)/| rtmk-nova* | ardos*)/' \
+        -e 's/gnu\* | android\*/gnu* | android* | ardos*/' \
+        -e 's/linux-android\* | linux-newlib\*/linux-android* | linux-ardos* | linux-newlib*/' \;
+    ''
+    + (
+      if preConfigure == null
+      then ""
+      else preConfigure
     );
-  };
+
+  # Wrap stdenv to automatically patch config.sub and register setup hooks
+  wrapStdenvForArdos = stdenv: setupHook:
+    stdenv
+    // {
+      mkDerivation = args:
+        stdenv.mkDerivation (
+          if builtins.isFunction args
+          then
+            (finalAttrs: let
+              attrs = args finalAttrs;
+            in
+              attrs
+              // {
+                preConfigure = patchAutotoolsConfig (attrs.preConfigure or null);
+                nativeBuildInputs = (attrs.nativeBuildInputs or []) ++ [setupHook];
+              })
+          else
+            args
+            // {
+              preConfigure = patchAutotoolsConfig (args.preConfigure or null);
+              nativeBuildInputs = (args.nativeBuildInputs or []) ++ [setupHook];
+            }
+        );
+    };
 
   # Overlay to adapt Nixpkgs toolchain and packages for the Ardos target
   ardosOverlay = final: prev: let
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
+
+    # Derivation for the Ardos layout mapping and shebang translation setup hook
+    ardosSetupHookDrv =
+      prev.makeSetupHook {
+        name = "ardos-setup-hook";
+      }
+      ./setup-hooks/ardos-map.sh;
   in
     if prev.stdenv.targetPlatform.config == targetPlatform.config
     then {
-      # Wrap stdenv only for target packages (host == ardos) to patch config.sub in-place
-      stdenv = if isTarget then wrapStdenvForArdos prev.stdenv else prev.stdenv;
+      # Wrap stdenv only for target packages (host == ardos) to patch config.sub in-place and run setup hooks
+      stdenv =
+        if isTarget
+        then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
+        else prev.stdenv;
 
       # Patch cross-binutils to support ardos target
-      binutils-unwrapped = if isCrossTool
-                           then prev.binutils-unwrapped.overrideAttrs (old: {
-                             patches = (old.patches or []) ++ [ ./patches/binutils-add-ardos.patch ];
-                             dontUpdateAutotoolsGnuConfigScripts = true;
-                           })
-                           else prev.binutils-unwrapped;
+      binutils-unwrapped =
+        if isCrossTool
+        then
+          prev.binutils-unwrapped.overrideAttrs (old: {
+            patches = (old.patches or []) ++ [./patches/binutils-add-ardos.patch];
+            dontUpdateAutotoolsGnuConfigScripts = true;
+          })
+        else prev.binutils-unwrapped;
+
+      # Overlay cross-bintools wrapper to inject our RPATH translation hook
+      bintools =
+        if isCrossTool
+        then
+          prev.bintools.overrideAttrs (old: {
+            postFixup =
+              (old.postFixup or "")
+              + ''
+                cp ${./hooks/ld-wrapper-hook} $out/nix-support/ld-wrapper-hook
+              '';
+          })
+        else prev.bintools;
 
       # Apply LLVM/Clang environment overrides
       llvmPackages = prev.llvmPackages.overrideScope (llvmFinal: llvmPrev: {
@@ -103,7 +142,7 @@ in rec {
     pkgs = import patchedNixpkgs ({
         system = buildPkgs.stdenv.buildPlatform.system;
         crossSystem = targetPlatform;
-        overlays = [ ardosOverlay ];
+        overlays = [ardosOverlay];
       }
       // cacheNixConfigPart);
   in
@@ -113,7 +152,9 @@ in rec {
     assert pkgs.stdenv.targetPlatform.config == targetPlatform.config; pkgs;
 
   toolchain = {
-    cc = crossPkgs.clang;
-    libgcc = crossPkgs.libgcc.meta.position;
+    cc = crossPkgs.stdenv.cc;
+    binutils = crossPkgs.bintools;
+    glibc = crossPkgs.glibc;
+    bash = buildPkgs.bash;
   };
 }

@@ -31,11 +31,21 @@
 
       targetPackages =
         lib.concatMapAttrs (
-          targetTriple: ardosPacker: {
+          targetTriple: ardosPacker: let
+            hellolibrary = import ./packages/hellolibrary {
+              inherit (ardosPacker) mkArdosDerivation;
+            };
+            hello = import ./packages/hello {
+              inherit (ardosPacker) mkArdosDerivation;
+              inherit hellolibrary;
+            };
+          in {
             "ardos-rom-${targetTriple}" = ardosPacker.ardosRom;
-            "ardos-clang-${targetTriple}" = ardosPacker.cc;
-            "ardos-bash-${targetTriple}" = ardosPacker.stdenv.crossPkgs.bash;
             "cross-${targetTriple}" = ardosPacker.stdenv.crossPkgs;
+            "toolchain-${targetTriple}" = ardosPacker.toolchain;
+            "stdenv-${targetTriple}" = ardosPacker.stdenv.crossPkgs.stdenv;
+            "hellolibrary-${targetTriple}" = hellolibrary;
+            "hello-${targetTriple}" = hello;
           }
         )
         targetPackagesByTriple;
@@ -52,6 +62,58 @@
           lib.nameValuePair
           (mkNixBuildSystem buildPlatform)
           (mkPackagesForBuildPlatform buildName buildPlatform)
+      )
+      ardosPackerLib.platforms;
+
+    devShells =
+      lib.mapAttrs'
+      (
+        buildName: buildPlatform: let
+          system = mkNixBuildSystem buildPlatform;
+          pkgs = import nixpkgs {inherit system;};
+          ardosPacker = ardosPackerLib.init {
+            targetPlatform = ardosPackerLib.platforms.x86_64;
+            buildSystem = system;
+            inherit nixpkgs;
+          };
+          crossPkgs = ardosPacker.stdenv.crossPkgs;
+        in
+          lib.nameValuePair system {
+            default = pkgs.mkShell {
+              name = "ardos-packer-devshell";
+              packages = with pkgs; [
+                just
+                alejandra
+                nix-output-monitor
+                cachix
+                git
+              ];
+              shellHook = ''
+                echo "============================================="
+                echo "  Ardos Packer Development Shell Active      "
+                echo "  Available tools: just, alejandra, nom, git "
+                echo "============================================="
+              '';
+            };
+            stdenv = pkgs.mkShell {
+              name = "ardos-packer-stdenv-devshell";
+              inputsFrom = [crossPkgs.stdenv];
+              packages = with pkgs; [
+                just
+                alejandra
+                nix-output-monitor
+                cachix
+                git
+              ];
+              shellHook = ''
+                echo "============================================="
+                echo "  Ardos Cross-Compilation Shell Active       "
+                echo "  Target: x86_64-linux-ardos                 "
+                echo "  CC: $CC                                    "
+                echo "============================================="
+              '';
+            };
+          }
       )
       ardosPackerLib.platforms;
   };
