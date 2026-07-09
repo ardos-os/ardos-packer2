@@ -10,6 +10,8 @@
     nixpkgs,
   }: let
     lib = nixpkgs.lib;
+    dbg = x: builtins.trace "${x}" x;
+
     ardosPackerLib = import ./lib {inherit nixpkgs;};
 
     mkNixBuildSystem = ardosPlatform: "${ardosPlatform.cpu}-${ardosPlatform.kernel}";
@@ -19,8 +21,40 @@
 
       mkPackagesForArdosTarget = targetName: targetPlatform: let
         ardosPacker = ardosPackerLib.init {
-          
           inherit targetPlatform buildSystem nixpkgs;
+          externalMappings = pkgs: let
+            # In nixpkgs this is commonly available here for the GCC package set.
+            # If your exact cross scope exposes libgcc elsewhere, bind that output instead.
+            libgcc = pkgs.gcc.cc.libgcc;
+            glibc = pkgs.glibc;
+          in [
+            {
+              drv = dbg glibc;
+              runtimeLayoutScript = ''
+                # glibc provides libc, libm, pthread-related compatibility DSOs,
+                # and the ELF interpreter (ld-linux-*.so.*). They all belong in the
+                # canonical Ardos system library directory.
+                for so in "$out"/lib/*.so*; do
+                  [ -e "$so" ] || continue
+                  mkdir -p "$stage/ardos/lib"
+                  ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
+                done
+              '';
+            }
+
+            {
+              drv = dbg libgcc;
+              runtimeLayoutScript = ''
+                # libgcc_s is a compiler runtime library, not an application-specific
+                # library, so put it beside libc in the system runtime lib directory.
+                for so in "$out"/lib/*.so*; do
+                  [ -e "$so" ] || continue
+                  mkdir -p "$stage/ardos/lib"
+                  ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
+                done
+              '';
+            }
+          ];
         };
       in {
         name = targetPlatform.config;
