@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -9,6 +9,28 @@ use std::path::{Path, PathBuf};
 struct UnmappedNixPath {
     kind: &'static str,
     path: String,
+    lookup_path: String,
+}
+
+fn nix_store_name(path: &str) -> Option<&str> {
+    let rest = path.strip_prefix("/nix/store/")?;
+    let store_component = rest.split('/').next()?;
+    let (_, name) = store_component.split_once('-')?;
+    Some(name)
+}
+
+fn similar_mappings<'a>(
+    unmapped: &UnmappedNixPath,
+    path_map: &'a BTreeMap<String, String>,
+) -> Vec<(&'a String, &'a String)> {
+    let Some(unmapped_name) = nix_store_name(&unmapped.lookup_path) else {
+        return Vec::new();
+    };
+
+    path_map
+        .iter()
+        .filter(|(mapped_path, _)| nix_store_name(mapped_path) == Some(unmapped_name))
+        .collect()
 }
 
 fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
@@ -23,14 +45,16 @@ fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
     }
 }
 fn translate_rpath(
-    path_map: &HashMap<String, String>,
+    path_map: &BTreeMap<String, String>,
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
     unmapped_nix_paths: &mut Vec<UnmappedNixPath>,
+    used_mappings: &mut BTreeSet<String>,
 ) -> io::Result<()> {
     let clean_str = PathBuf::from(val).to_string_lossy().into_owned();
     if let Some(translated) = path_map.get(&clean_str) {
+        used_mappings.insert(clean_str.clone());
         eprintln!("Translating library {clean_str} -> {translated}");
         stdout.write_all(flag.as_bytes())?;
         stdout.write_all(b"\0")?;
@@ -44,7 +68,8 @@ fn translate_rpath(
     } else if clean_str.starts_with("/nix/store/") {
         unmapped_nix_paths.push(UnmappedNixPath {
             kind: "rpath",
-            path: clean_str,
+            path: clean_str.clone(),
+            lookup_path: clean_str,
         });
     } else if is_dir_empty(&clean_str) {
         return Ok(());
@@ -58,11 +83,12 @@ fn translate_rpath(
     Ok(())
 }
 fn translate_dynamic_linker(
-    path_map: &HashMap<String, String>,
+    path_map: &BTreeMap<String, String>,
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
     unmapped_nix_paths: &mut Vec<UnmappedNixPath>,
+    used_mappings: &mut BTreeSet<String>,
 ) -> io::Result<()> {
     if val.starts_with("/nix/store/") {
         // Canonicalize to resolve lib64/lib32 symlinks -> /lib
@@ -81,6 +107,7 @@ fn translate_dynamic_linker(
             .into_owned();
 
         if let Some(translated_dir) = path_map.get(&linker_dir) {
+            used_mappings.insert(linker_dir.clone());
             let translated = format!("{}/{}", translated_dir, linker_base);
             if env::var("NIX_DEBUG").unwrap_or_default() == "1" {
                 eprintln!(
@@ -96,6 +123,7 @@ fn translate_dynamic_linker(
             unmapped_nix_paths.push(UnmappedNixPath {
                 kind: "interpreter",
                 path: val.to_string(),
+                lookup_path: linker_dir,
             });
         }
     } else {
@@ -118,7 +146,7 @@ fn main() -> io::Result<()> {
     let input_args = &args[3..];
 
     // Load path mappings
-    let mut path_map = HashMap::new();
+    let mut path_map = BTreeMap::new();
     if let Ok(file) = File::open(map_path) {
         let reader = BufReader::new(file);
         for line in reader.lines() {
@@ -138,6 +166,7 @@ fn main() -> io::Result<()> {
     stdout.write_all(b"--copy-dt-needed-entries")?;
     stdout.write_all(b"\0")?;
     let mut unmapped_nix_paths = Vec::new();
+    let mut used_mappings = BTreeSet::new();
     let mut i = 0;
     while i < input_args.len() {
         let arg = &input_args[i];
@@ -150,6 +179,7 @@ fn main() -> io::Result<()> {
                 &input_args[i + 1],
                 &mut stdout,
                 &mut unmapped_nix_paths,
+                &mut used_mappings,
             )?;
             i += 2;
         // Handle "-rpath=/path" (combined form)
@@ -160,6 +190,7 @@ fn main() -> io::Result<()> {
                 val,
                 &mut stdout,
                 &mut unmapped_nix_paths,
+                &mut used_mappings,
             )?;
             i += 1;
         // Handle "-dynamic-linker /path" or "--dynamic-linker /path" (two-arg)
@@ -172,6 +203,7 @@ fn main() -> io::Result<()> {
                 &input_args[i + 1],
                 &mut stdout,
                 &mut unmapped_nix_paths,
+                &mut used_mappings,
             )?;
             i += 2;
         // Handle "-dynamic-linker=/path" or "--dynamic-linker=/path" (combined form)
@@ -184,7 +216,14 @@ fn main() -> io::Result<()> {
             } else {
                 "-dynamic-linker"
             };
-            translate_dynamic_linker(&path_map, flag, val, &mut stdout, &mut unmapped_nix_paths)?;
+            translate_dynamic_linker(
+                &path_map,
+                flag,
+                val,
+                &mut stdout,
+                &mut unmapped_nix_paths,
+                &mut used_mappings,
+            )?;
             i += 1;
         } else {
             stdout.write_all(arg.as_bytes())?;
@@ -203,6 +242,24 @@ fn main() -> io::Result<()> {
         );
         for unmapped in &unmapped_nix_paths {
             eprintln!("  - {}: {}", unmapped.kind, unmapped.path);
+            let similar = similar_mappings(unmapped, &path_map);
+            if !similar.is_empty() {
+                eprintln!("    similar mappings with the same package name:");
+                for (nix_path, ardos_path) in similar {
+                    eprintln!("      * {} -> {}", nix_path, ardos_path);
+                }
+            }
+        }
+        eprintln!("\n             Runtime mappings that were loaded but not used:");
+        let mut unused_count = 0usize;
+        for (nix_path, ardos_path) in &path_map {
+            if !used_mappings.contains(nix_path) {
+                unused_count += 1;
+                eprintln!("  - {} -> {}", nix_path, ardos_path);
+            }
+        }
+        if unused_count == 0 {
+            eprintln!("  (none)");
         }
         eprintln!("========================================================================");
         std::process::exit(1);
