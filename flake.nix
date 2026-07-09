@@ -99,43 +99,59 @@
       )
       ardosPackerLib.platforms;
     checks = let
-      # Hardcoded platform lookup from your library
-      buildPlatform = ardosPackerLib.platforms."x86_64";
+      expectedInterpreters = {
+        x86_64-linux-ardos = "/ardos/lib/ld-linux-x86-64.so.2";
+        aarch64-linux-ardos = "/ardos/lib/ld-linux-aarch64.so.1";
+        riscv64-linux-ardos = "/ardos/lib/ld-linux-riscv64-lp64d.so.1";
+      };
+    in
+      lib.mapAttrs' (
+        buildName: buildPlatform: let
+          system = mkNixBuildSystem buildPlatform;
+          pkgs = mkPackagesForBuildPlatform buildName buildPlatform;
+          buildPkgs = import nixpkgs {inherit system;};
+        in
+          lib.nameValuePair system (
+            lib.mapAttrs' (
+              targetName: targetPlatform: let
+                targetTriple = targetPlatform.config;
+                hello = pkgs."hello-${targetTriple}";
+                expectedInterpreter = expectedInterpreters.${targetTriple};
+              in
+                lib.nameValuePair "hello-binary-${targetTriple}" (
+                  buildPkgs.runCommand "check-hello-binary-${targetTriple}" {
+                    nativeBuildInputs = [buildPkgs.patchelf];
+                  } ''
+                    echo "Checking hello binary ELF properties for ${targetTriple}..."
+                    interp=$(patchelf --print-interpreter ${hello}/bin/hello)
+                    echo "Interpreter: $interp"
+                    rpath=$(patchelf --print-rpath ${hello}/bin/hello)
+                    echo "RPATH: $rpath"
 
-      system = "x86_64-linux";
-      pkgs = mkPackagesForBuildPlatform "x86_64-linux" buildPlatform;
-      buildPkgs = import nixpkgs {inherit system;};
-      hello = pkgs."hello-x86_64-linux-ardos";
-    in {
-      hello-binary =
-        buildPkgs.runCommand "check-hello-binary" {
-          nativeBuildInputs = [buildPkgs.patchelf];
-        } ''
-          echo "Checking hello binary ELF properties..."
-          interp=$(patchelf --print-interpreter ${hello}/bin/hello)
-          echo "Interpreter: $interp"
-          rpath=$(patchelf --print-rpath ${hello}/bin/hello)
-          echo "RPATH: $rpath"
+                    if [ "$interp" != "${expectedInterpreter}" ]; then
+                      echo "Error: Interpreter is not ${expectedInterpreter}! Actual: $interp" >&2
+                      exit 1
+                    fi
 
-          if [ "$interp" != "/ardos/lib/ld-linux-x86-64.so.2" ]; then
-            echo "Error: Interpreter is not /ardos/lib/ld-linux-x86-64.so.2! Actual: $interp" >&2
-            exit 1
-          fi
+                    if [[ "$rpath" != *"/hellolibrary"* ]]; then
+                      echo "Error: RPATH does not contain /hellolibrary" >&2
+                      exit 1
+                    fi
 
-          if [[ "$rpath" != *"/hellolibrary"* ]]; then
-            echo "Error: RPATH does not contain /hellolibrary" >&2
-            exit 1
-          fi
+                    if [[ "$rpath" == *"/nix/store/"* ]]; then
+                      echo "Error: RPATH contains /nix/store path" >&2
+                      exit 1
+                    fi
 
-          if [[ "$rpath" == *"/nix/store/"* ]]; then
-            echo "Error: RPATH contains /nix/store path" >&2
-            exit 1
-          fi
-
-          echo "All checks passed!"
-          touch $out
-        '';
-    };
+                    echo "All checks passed!"
+                    touch $out
+                  ''
+                )
+            )
+            ardosPackerLib.platforms
+          )
+      )
+      ardosPackerLib.platforms;
 
     devShells =
       lib.mapAttrs'

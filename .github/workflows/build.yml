@@ -7,9 +7,29 @@ on:
     branches: [main]
 
 jobs:
-  hello-binary:
-    name: Check hello binary (x86_64-linux-ardos)
-    runs-on: ubuntu-24.04
+  ardos-cross-matrix:
+    name: Build ${{ matrix.package }} (${{ matrix.build.system }} -> ${{ matrix.target_triple }})
+    runs-on: ${{ matrix.build.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - runner: ubuntu-24.04
+            system: x86_64-linux
+            extra_platforms: x86_64-linux aarch64-linux riscv64-linux
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+            extra_platforms: aarch64-linux x86_64-linux riscv64-linux
+        target_triple:
+          - x86_64-linux-ardos
+          - aarch64-linux-ardos
+          - riscv64-linux-ardos
+        package:
+          - stdenv
+          - hellolibrary
+          - hello
+          - ardos-rom
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +42,52 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
-            extra-platforms = x86_64-linux aarch64-linux
+            extra-platforms = ${{ matrix.build.extra_platforms }}
+
+      - name: Push build outputs to Cachix
+        uses: cachix/cachix-action@v14
+        with:
+          name: ardos-os
+          authToken: '${{ secrets.CACHIX_TOKEN }}'
+
+      - name: Build package
+        run: |
+          nix build \
+            ".#packages.${{ matrix.build.system }}.${{ matrix.package }}-${{ matrix.target_triple }}" \
+            --print-build-logs
+
+  hello-binary-checks:
+    name: Check hello binary (${{ matrix.target_triple }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target_triple:
+          - x86_64-linux-ardos
+          - aarch64-linux-ardos
+          - riscv64-linux-ardos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.10.7
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            extra-substituters = https://ardos-os.cachix.org
+            extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
+            experimental-features = nix-command flakes
+            extra-platforms = x86_64-linux aarch64-linux riscv64-linux
+
+      - name: Push build outputs to Cachix
+        uses: cachix/cachix-action@v14
+        with:
+          name: ardos-os
+          authToken: '${{ secrets.CACHIX_TOKEN }}'
+
       - name: Build hello-binary check
-        run: nix build .#checks.hello-binary --print-build-logs
+        run: |
+          nix build \
+            ".#checks.x86_64-linux.hello-binary-${{ matrix.target_triple }}" \
+            --print-build-logs
