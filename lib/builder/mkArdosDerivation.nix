@@ -140,10 +140,11 @@ in rec {
     # Build the derivation using our target stdenv
     drv = crossPkgs.stdenv.mkDerivation (cleanArgs
       // {
-        _ardos_translate= let 
+        _ardos_translate = let
           ardosEarlyInit = rustScript "ardos_ld_translate" ./hooks/ardos_ld_translate.rs;
           ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos_ld_translate";
-          in ardosEarlyInitExe;
+        in
+          ardosEarlyInitExe;
         __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
         ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
         NIX_DEBUG = "1";

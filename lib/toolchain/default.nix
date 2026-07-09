@@ -20,7 +20,6 @@
 }: let
   inherit (host) cacheNixConfigPart patchedNixpkgs;
 
-
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
   # Runs in preConfigure (i.e. inside configurePhase), which is AFTER
   # updateAutotoolsGnuConfigScriptsPhase, so these sed expressions always win
@@ -136,17 +135,20 @@
     }
     else {};
 in rec {
-
-  buildPkgs = import patchedNixpkgs {
-    system = buildSystem;
-  } // cacheNixConfigPart;
+  buildPkgs =
+    import patchedNixpkgs {
+      system = buildSystem;
+    }
+    // cacheNixConfigPart;
 
   crossPkgs = let
-    pkgs = import patchedNixpkgs {
-      system = buildPkgs.stdenv.buildPlatform.system;
-      crossSystem = targetPlatform;
-      overlays = [ardosOverlay];
-    } // cacheNixConfigPart;
+    pkgs =
+      import patchedNixpkgs {
+        system = buildPkgs.stdenv.buildPlatform.system;
+        crossSystem = targetPlatform;
+        overlays = [ardosOverlay];
+      }
+      // cacheNixConfigPart;
   in
     assert buildPkgs.stdenv.buildPlatform.config != targetPlatform.config;
     assert pkgs.stdenv.buildPlatform.config == buildPkgs.stdenv.buildPlatform.config;
