@@ -1,6 +1,5 @@
 {
   description = "Ardos Packer 2";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
@@ -78,7 +77,7 @@
             #"cross-${targetTriple}" = ardosPacker.stdenv.crossPkgs;
             #"toolchain-${targetTriple}" = ardosPacker.toolchain;
             "ardos-rom-${targetTriple}" = ardosPacker.ardosRom;
-            "stdenv-${targetTriple}" = ardosPacker.stdenv.crossPkgs.stdenv;
+            "stdenv-${targetTriple}" = ardosPacker.crossPkgs.stdenv;
             "hellolibrary-${targetTriple}" = hellolibrary;
             "hello-${targetTriple}" = hello;
           }

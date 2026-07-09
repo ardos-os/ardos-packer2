@@ -44,7 +44,7 @@ in rec {
       inherit buildPkgs crossPkgs externalMappings;
     };
   in {
-    inherit (toolchain) toolchain;
+    inherit crossPkgs;
     inherit (builder) mkArdosDerivation mkRuntimeTree;
     cc = toolchain.toolchain.cc;
     # Placeholder: real implementation lands with Milestone 3 (ROM generator).

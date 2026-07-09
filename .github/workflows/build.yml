@@ -15,15 +15,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v22
-
-      - name: Enable experimental features
-        run: |
-          mkdir -p ~/.config/nix
-          cat > ~/.config/nix/nix.conf <<'EOF'
-          experimental-features = nix-command flakes
-          extra-platforms = x86_64-linux aarch64-linux
-          EOF
-
+        uses: cachix/install-nix-action@v31.10.7
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            extra-substituters = https://ardos-os.cachix.org
+            extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
+            experimental-features = nix-command flakes
+            extra-platforms = x86_64-linux aarch64-linux
       - name: Build hello-binary check
         run: nix build .#checks.hello-binary --print-build-logs
