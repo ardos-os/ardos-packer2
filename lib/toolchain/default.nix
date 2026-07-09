@@ -1,14 +1,25 @@
+# lib/toolchain — Stage 1: cross-compilation toolchain.
+#
+# Builds `crossPkgs`, a Nixpkgs instance configured for the Ardos target
+# (e.g. x86_64-linux-ardos). Wires the overlay that:
+#
+#   * patches cross-binutils and glibc for the ardos ABI
+#   * wraps the target stdenv so every Ardos package gets config.sub patched
+#     (without invalidating the toolchain itself) and the ardos-setup hook
+#   * injects the stable ld-wrapper stub into the cross bintools wrapper
+#   * patches LLVM's environment detection
+#
+# `host` is the patched host nixpkgs from Stage 0.
+# `builder` exposes `rustScript`, used here to compile ardos-setup-tool.
 {
-  buildSystem,
   nixpkgs,
   targetPlatform,
+  buildSystem,
+  host,
   rustScript,
-  ...
 }: let
-  cacheNixConfigPart = {
-    extra-substituters = ["https://ardos-os.cachix.org"];
-    extra-trusted-public-keys = ["ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s="];
-  };
+  inherit (host) cacheNixConfigPart patchedNixpkgs;
+
 
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
   # Runs in preConfigure (i.e. inside configurePhase), which is AFTER
@@ -55,33 +66,38 @@
               nativeBuildInputs = (args.nativeBuildInputs or []) ++ [setupHook];
             }
         );
-      ardosSetupHookDrv = setupHook;
     };
 
   # Overlay to adapt Nixpkgs toolchain and packages for the Ardos target
   ardosOverlay = final: prev: let
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
-    # Derivation for the Ardos layout mapping and shebang translation setup hook
     ardosSetupHookDrv = let
-      ardos-setup-tool = rustScript "ardos-setup-tool" ./setup-hooks/ardos_setup_tool.rs;
-      ardosSetupToolExe = "${ardos-setup-tool}/bin/ardos-setup-tool";
+      ardosEarlyInit = rustScript "ardos-setup-early-init" ../builder/setup/early-init.rs;
+      ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos-setup-early-init";
+      ardosPopulateMap = rustScript "ardos-setup-populate-map" ../builder/setup/populate-map.rs;
+      ardosPopulateMapExe = "${ardosPopulateMap}/bin/ardos-setup-populate-map";
+      ardosGenerateDefaultLayout = rustScript "ardos-setup-generate-layout" ../builder/setup/generate-layout.rs;
+      ardosGenerateDefaultLayoutExe = "${ardosGenerateDefaultLayout}/bin/ardos-setup-generate-layout";
+      ardosTranslateShebangs = rustScript "ardos-setup-translate-shebangs" ../builder/setup/translate-shebangs.rs;
+      ardosTranslateShebangsExe = "${ardosTranslateShebangs}/bin/ardos-setup-translate-shebangs";
     in
       prev.makeSetupHook {
         name = "ardos-setup-hook";
-      } (prev.replaceVars ./setup-hooks/ardos-map.sh {
-        ardosSetupTool = ardosSetupToolExe;
+      } (prev.replaceVars ../builder/setup/ardos-setup.sh {
+        ardosEarlyOut = ardosEarlyInitExe;
+        ardosPopulateMapOut = ardosPopulateMapExe;
+        ardosGenerateDefaultLayoutOut = ardosGenerateDefaultLayoutExe;
+        ardosTranslateShebangsOut = ardosTranslateShebangsExe;
       });
   in
     if prev.stdenv.targetPlatform.config == targetPlatform.config
     then {
-      # Wrap stdenv only for target packages (host == ardos) to patch config.sub in-place and run setup hooks
       stdenv =
         if isTarget
         then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
         else prev.stdenv;
 
-      # Patch cross-binutils to support ardos target
       binutils-unwrapped =
         if isCrossTool
         then
@@ -91,7 +107,6 @@
           })
         else prev.binutils-unwrapped;
 
-      # Overlay cross-bintools wrapper to inject our RPATH translation hook
       bintools =
         if isCrossTool
         then
@@ -99,12 +114,11 @@
             postFixup =
               (old.postFixup or "")
               + ''
-                cp ${./hooks/ld-wrapper-hook} $out/nix-support/ld-wrapper-hook
+                cp ${../builder/hooks/ld-wrapper.sh} $out/nix-support/ld-wrapper-hook
               '';
           })
         else prev.bintools;
 
-      # Apply LLVM/Clang environment overrides
       llvmPackages = prev.llvmPackages.overrideScope (llvmFinal: llvmPrev: {
         llvm = llvmPrev.llvm.overrideAttrs (old: {
           patches =
@@ -116,40 +130,23 @@
       });
       clang = final.llvmPackages.clang;
 
-      # Patch target glibc (and its bootstrap variants).
-      # config.sub is handled via patchAutotoolsConfig in preConfigure (runs after
-      # updateAutotoolsGnuConfigScriptsPhase, so it always takes precedence).
-      # We set it explicitly here so it applies regardless of which bootstrap
-      # stdenv stage is used to build glibc or glibc-nolibgcc.
       glibc = prev.glibc.overrideAttrs (old: {
         preConfigure = patchAutotoolsConfig (old.preConfigure or null);
       });
     }
     else {};
 in rec {
-  beforePatchBuildPkgs = import nixpkgs ({
-      system = buildSystem;
-    }
-    // cacheNixConfigPart);
 
-  patchedNixpkgs = beforePatchBuildPkgs.applyPatches {
-    name = "nixpkgs-ardos";
-    src = nixpkgs;
-    patches = [./patches/nixpkgs.patch];
-  };
-
-  buildPkgs = import patchedNixpkgs ({
-      system = buildSystem;
-    }
-    // cacheNixConfigPart);
+  buildPkgs = import patchedNixpkgs {
+    system = buildSystem;
+  } // cacheNixConfigPart;
 
   crossPkgs = let
-    pkgs = import patchedNixpkgs ({
-        system = buildPkgs.stdenv.buildPlatform.system;
-        crossSystem = targetPlatform;
-        overlays = [ardosOverlay];
-      }
-      // cacheNixConfigPart);
+    pkgs = import patchedNixpkgs {
+      system = buildPkgs.stdenv.buildPlatform.system;
+      crossSystem = targetPlatform;
+      overlays = [ardosOverlay];
+    } // cacheNixConfigPart;
   in
     assert buildPkgs.stdenv.buildPlatform.config != targetPlatform.config;
     assert pkgs.stdenv.buildPlatform.config == buildPkgs.stdenv.buildPlatform.config;

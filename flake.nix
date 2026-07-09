@@ -19,6 +19,7 @@
 
       mkPackagesForArdosTarget = targetName: targetPlatform: let
         ardosPacker = ardosPackerLib.init {
+          
           inherit targetPlatform buildSystem nixpkgs;
         };
       in {

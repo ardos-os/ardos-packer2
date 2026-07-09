@@ -1,30 +1,35 @@
-# mkArdosDerivation — Exposes the package builder abstraction for Ardos runtime packages.
-# Separates target compilation/linking (stdenv) from package runtime layout definition.
+# mkArdosDerivation — Stage 2 (per-package builder).
 #
-# A package declares its runtime layout with `runtimeLayoutScript`: a bash snippet that
-# is executed inside an empty staging directory. The script uses normal `ln -s` calls
-# to materialise the final Ardos filesystem layout as symlinks pointing back at the
-# package's own `$out`. After the script runs, the resulting symlink tree is walked
-# and the discovered mappings are written to `$out/nix-support/ardos-layout`, which is
-# the single source of truth consumed by the linker wrapper, downstream packages and
-# the ROM generator.
+# Exposes the package builder abstraction for Ardos runtime packages.
+# Separates target compilation/linking (stdenv) from package runtime layout
+# definition.
 #
-# Backwards-compatible: if a package still passes the legacy `runtimeLayout` list, it
-# is converted into an equivalent script (one `ln -s` per entry).
+# A package declares its runtime layout with `runtimeLayoutScript`: a bash
+# snippet that is executed inside an empty staging directory. The script uses
+# normal `ln -s` calls to materialise the final Ardos filesystem layout as
+# symlinks pointing back at the package's own `$out`. After the script runs,
+# the resulting symlink tree is walked and the discovered mappings are written
+# to `$out/nix-support/ardos-layout`, which is the single source of truth
+# consumed by the linker wrapper, downstream packages and the ROM generator.
+#
+# Backwards-compatible: if a package still passes the legacy `runtimeLayout`
+# list, it is converted into an equivalent script (one `ln -s` per entry).
+#
+# File-local relative paths (./hooks/*) are relative to this file's location
+# in lib/builder/.
 {
-  stdenv,
   nixpkgs,
-  rustScript,
+  crossPkgs,
+  rustScript
 }: let
   lib = nixpkgs.lib;
-  glibc = stdenv.crossPkgs.glibc;
+  stdenv = crossPkgs.stdenv;
+  glibc = crossPkgs.glibc;
 
-  # Convert a list of {source, target} entries into a tiny shell script that creates
-  # the same symlink tree. Used to bridge packages still on the old declarative form.
   layoutListToScript = entries:
     lib.concatMapStrings (entry: ''
-      mkdir -p "$stage$(dirname "${entry.target}")"
-      ln -sfn "$out/${entry.source}" "$stage${entry.target}"
+      mkdir -p "\$stage\$(dirname \"${entry.target}\")"
+      ln -sfn "\$out/${entry.source}" "\$stage${entry.target}"
     '')
     entries;
 
@@ -34,8 +39,8 @@
     version,
     drv,
   }:
-    stdenv.crossPkgs.runCommand "${pname}-runtime-tree-${version}" {
-      nativeBuildInputs = [stdenv.crossPkgs.coreutils];
+    crossPkgs.runCommand "${pname}-runtime-tree-${version}" {
+      nativeBuildInputs = [crossPkgs.coreutils];
     } ''
       mkdir -p $out
       # Parse the layout of the package and create symlinks at the target paths
@@ -88,12 +93,13 @@ in rec {
       else layoutListToScript runtimeLayout;
 
     # Build the derivation using our target stdenv
-    drv = stdenv.crossPkgs.stdenv.mkDerivation (cleanArgs
+    drv = crossPkgs.stdenv.mkDerivation (cleanArgs
       // {
-        _ardos_hook_dir = rustScript "ardos-ld-translate" ./stdenv/hooks/ardos-ld-translate.rs;
-        __ardosLdHook__ = ./stdenv/hooks/ld-wrapper-hook-impl;
-        __ardosMapTargetGlibc__ = "${glibc}";
-        __ardosMapTargetLibgcc__ = "${stdenv.toolchain.cc.cc}";
+        _ardos_translate= let 
+          ardosEarlyInit = rustScript "ardos_ld_translate" ./hooks/ardos_ld_translate.rs;
+          ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos_ld_translate";
+          in ardosEarlyInitExe;
+        __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
         NIX_DEBUG = "1";
 
         # Auto-derive ardos-layout from the developer-provided script.

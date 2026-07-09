@@ -6,16 +6,14 @@ use std::path::{Path, PathBuf};
 use std::fs;
 
 fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
-    // Se a pasta nem existe ou não é diretoria, consideramos "vazia/irrelevante" para o RPATH
     let path = path.as_ref();
     if !path.is_dir() {
         return true;
     }
 
-    // Lê o conteúdo da diretoria. Se falhar ou o primeiro elemento for None, está vazia.
     match fs::read_dir(path) {
         Ok(mut entries) => entries.next().is_none(),
-        Err(_) => true, // Se não conseguir ler (permissão, etc), trata como vazia para evitar pânico
+        Err(_) => true,
     }
 }
 fn translate_rpath(
@@ -114,7 +112,6 @@ fn translate_dynamic_linker(
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    // Expecting: ardos-ld-translate --map <map-file> [args...]
     if args.len() < 3 || args[1] != "--map" {
         eprintln!("Usage: ardos-ld-translate --map <map_path> [args...]");
         std::process::exit(1);

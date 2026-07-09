@@ -3,17 +3,12 @@
 # Changes to this file only rebuild Ardos target packages, NOT the toolchain.
 
 if [[ -n "${ARDOS_RUNTIME_MAP:-}" && -f "$ARDOS_RUNTIME_MAP" ]]; then
-  # Find the Rust translator relative to this hook file
-  _ardos_translate="${_ardos_hook_dir}/bin/ardos-ld-translate"
-
-  # 1. Translate params array in-place
   newParams=()
   while IFS= read -r -d '' item; do
     newParams+=("$item")
   done < <("$_ardos_translate" --map "$ARDOS_RUNTIME_MAP" "${params[@]}")
   params=("${newParams[@]}")
 
-  # 2. Translate extraAfter array in-place
   newExtraAfter=()
   while IFS= read -r -d '' item; do
     newExtraAfter+=("$item")
