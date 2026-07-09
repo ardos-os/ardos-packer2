@@ -53,10 +53,8 @@
             src_rel=$(readlink -- "$entry")
           fi
         elif [ -f "$entry" ]; then
-          src_rel="''${entry#${mapping.drv}/}"
-          if [ "$src_rel" = "$entry" ]; then
-            src_rel="$entry"
-          fi
+          echo "error: runtimeLayoutScript for ${mapping.drv} created a concrete file in ardos-layout: $entry" >&2
+          exit 1
         else
           continue
         fi
@@ -203,11 +201,8 @@ in rec {
                     src_rel=$(readlink -- "$entry")
                   fi
                 elif [ -f "$entry" ]; then
-                  src_rel="''${entry#$out/}"
-                  if [ "$src_rel" = "$entry" ]; then
-                    # File outside $out: record by absolute path.
-                    src_rel="$entry"
-                  fi
+                  echo "error: runtimeLayoutScript for ${pname} created a concrete file in ardos-layout: $entry" >&2
+                  exit 1
                 else
                   # Directory or other: skip — we only emit leaf mappings.
                   continue

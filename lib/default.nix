@@ -75,6 +75,49 @@ in rec {
         } ''
         root=$(mktemp -d)
 
+        copy_mapping() {
+          src_path="$1"
+          dest_path="$2"
+
+          if [ ! -e "$src_path" ] && [ ! -L "$src_path" ]; then
+            echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$root}" >&2
+            exit 1
+          fi
+
+          # Runtime mappings are represented by a symlink tree. Resolve exactly
+          # one symlink level: a link to a directory copies that directory's
+          # contents, a link to a file copies the file, and a link to another
+          # symlink copies that second symlink verbatim.
+          copy_source="$src_path"
+          if [ -L "$src_path" ]; then
+            link_target=$(readlink -- "$src_path")
+            case "$link_target" in
+              /*) resolved="$link_target" ;;
+              *) resolved="$(dirname "$src_path")/$link_target" ;;
+            esac
+
+            if [ ! -e "$resolved" ] && [ ! -L "$resolved" ]; then
+              echo "error: broken Ardos runtime mapping symlink: $src_path -> $link_target" >&2
+              exit 1
+            fi
+
+            copy_source="$resolved"
+          fi
+
+          if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
+            echo "error: duplicate Ardos runtime path: ''${dest_path#$root}" >&2
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$dest_path")"
+          if [ -d "$copy_source" ] && [ ! -L "$copy_source" ]; then
+            mkdir -p "$dest_path"
+            cp -a --no-preserve=ownership "$copy_source"/. "$dest_path"/
+          else
+            cp -a --no-preserve=ownership "$copy_source" "$dest_path"
+          fi
+        }
+
         while IFS= read -r store_path; do
           layout="$store_path/nix-support/ardos-layout"
           [ -f "$layout" ] || continue
@@ -84,11 +127,13 @@ in rec {
 
             src_rel="''${line%% -> *}"
             dest_abs="''${line#* -> }"
-            src_path="$store_path/$src_rel"
+            case "$src_rel" in
+              /*) src_path="$src_rel" ;;
+              *) src_path="$store_path/$src_rel" ;;
+            esac
             dest_path="$root/''${dest_abs#/}"
 
-            mkdir -p "$(dirname "$dest_path")"
-            ln -sfn "$src_path" "$dest_path"
+            copy_mapping "$src_path" "$dest_path"
           done < "$layout"
         done < ${closure}/store-paths
 
