@@ -12,11 +12,12 @@
 {
   buildPkgs,
   crossPkgs,
+  externalMappings ? [],
 }: rec {
   rustScript = import ./rustScript.nix {inherit buildPkgs;};
   inherit (import ./mkArdosDerivation.nix {
     nixpkgs = buildPkgs;
-    inherit crossPkgs rustScript;
+    inherit crossPkgs rustScript externalMappings;
   })
     mkArdosDerivation
     mkRuntimeTree;
