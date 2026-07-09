@@ -57,33 +57,33 @@
 ### Milestone 2 — Runtime Layout & Linker Integration 🔲
 > Teach the linker to embed correct Ardos runtime paths, not Nix store paths.
 
-#### 2.1 — `ld-wrapper-hook` (Experiments validated, ready to implement)
+#### 2.1 — `ld-wrapper-hook`
 
 | Task | Status | Notes |
 |---|---|---|
-| Write `lib/stdenv/hooks/ld-wrapper-hook` | 🔲 | Port from `experiments/ld-wrapper-hook` |
-| Write `lib/stdenv/setup-hooks/ardos-map.sh` | 🔲 | Aggregates `nix-support/ardos-layout` from `buildInputs` into `$ARDOS_RUNTIME_MAP` |
-| Inject `ld-wrapper-hook` into cross-compiling `bintools` via overlay | 🔲 | `bintools.overrideAttrs` in `ardosOverlay` |
-| Inject `ardos-map.sh` as a setup hook into `ardosStdenv` | 🔲 | Via `stdenv.setupHook` or `nativeBuildInputs` |
+| Write `lib/stdenv/hooks/ld-wrapper-hook` | ✅ Done | Port from `experiments/ld-wrapper-hook` |
+| Write `lib/stdenv/setup-hooks/ardos-map.sh` | ✅ Done | Aggregates `nix-support/ardos-layout` from `buildInputs` into `$ARDOS_RUNTIME_MAP` |
+| Inject `ld-wrapper-hook` into cross-compiling `bintools` via overlay | ✅ Done | `bintools.overrideAttrs` in `ardosOverlay` |
+| Inject `ardos-map.sh` as a setup hook into `ardosStdenv` | ✅ Done | Via `stdenv.setupHook` or `nativeBuildInputs` |
 
 #### 2.2 — `mkArdosDerivation` helper
 
 | Task | Status | Notes |
 |---|---|---|
-| Write `lib/mkArdosDerivation.nix` | 🔲 | Wraps `crossPkgs.stdenv.mkDerivation` |
-| Accept `runtimeLayoutScript` (Bash snippet) | 🔲 | Developer-defined symlink script |
-| Generate `nix-support/ardos-layout` from `runtimeLayoutScript` output | 🔲 | Run the script into a temp dir, record the symlinks as `source -> target` lines |
-| Provide default layout helpers (`defaultArdosLayout`) | 🔲 | Automatically maps `bin/*`, `lib/*.so*`, etc. |
-| Expose `passthru.ardos.runtimeLayout` attribute | 🔲 | Nix-side metadata for introspection |
+| Write `lib/mkArdosDerivation.nix` | ✅ Done | Wraps `crossPkgs.stdenv.mkDerivation` |
+| Accept `runtimeLayoutScript` (Bash snippet) | ✅ Done | Developer-defined symlink script |
+| Generate `nix-support/ardos-layout` from `runtimeLayoutScript` output | ✅ Done | Run the script into a temp dir, record the symlinks as `source -> target` lines |
+| Provide default layout helpers (`defaultArdosLayout`) | ✅ Done | Automatically maps `bin/*`, `lib/*.so*`, etc. |
+| Expose `passthru.ardos.runtimeLayout` attribute | ✅ Done | Nix-side metadata for introspection |
 
 #### 2.3 — `mkRuntimeTree` helper
 
 | Task | Status | Notes |
 |---|---|---|
-| Write `lib/mkRuntimeTree.nix` | 🔲 | Takes a built Ardos derivation, materializes a symlink tree |
-| Build output contains symlinks pointing into `/nix/store` | 🔲 | e.g. `$out/ardos/lib/libfoo.so -> /nix/store/.../libfoo.so` |
-| Expose as `passthru.ardos.runtimeTree` | 🔲 | Used by ROM generator and linker wrapper |
-| Verify no target path hardcoding | 🔲 | Paths sourced entirely from `runtimeLayoutScript` output |
+| Write `lib/mkRuntimeTree.nix` | ✅ Done | Takes a built Ardos derivation, materializes a symlink tree |
+| Build output contains symlinks pointing into `/nix/store` | ✅ Done | e.g. `$out/ardos/lib/libfoo.so -> /nix/store/.../libfoo.so` |
+| Expose as `passthru.ardos.runtimeTree` | ✅ Done | Used by ROM generator and linker wrapper |
+| Verify no target path hardcoding | ✅ Done | Paths sourced entirely from `runtimeLayoutScript` output |
 
 ---
 
