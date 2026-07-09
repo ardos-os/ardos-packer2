@@ -18,7 +18,7 @@
   host,
   rustScript,
 }: let
-  inherit (host) cacheNixConfigPart patchedNixpkgs;
+  inherit (host) patchedNixpkgs;
 
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
   # Runs in preConfigure (i.e. inside configurePhase), which is AFTER
@@ -138,8 +138,7 @@ in rec {
   buildPkgs =
     import patchedNixpkgs {
       system = buildSystem;
-    }
-    // cacheNixConfigPart;
+    };
 
   crossPkgs = let
     pkgs =
@@ -147,8 +146,7 @@ in rec {
         system = buildPkgs.stdenv.buildPlatform.system;
         crossSystem = targetPlatform;
         overlays = [ardosOverlay];
-      }
-      // cacheNixConfigPart;
+      };
   in
     assert buildPkgs.stdenv.buildPlatform.config != targetPlatform.config;
     assert pkgs.stdenv.buildPlatform.config == buildPkgs.stdenv.buildPlatform.config;

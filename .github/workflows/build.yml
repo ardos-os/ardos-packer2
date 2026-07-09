@@ -16,11 +16,12 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v22
-
-      - name: Enable experimental features
+      - name: Add nix conf
         run: |
           mkdir -p ~/.config/nix
           cat > ~/.config/nix/nix.conf <<'EOF'
+          extra-substituters = https://ardos-os.cachix.org
+          extra-trusted-substituters = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
           experimental-features = nix-command flakes
           extra-platforms = x86_64-linux aarch64-linux
           EOF

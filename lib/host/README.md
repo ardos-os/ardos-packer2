@@ -14,9 +14,6 @@ patches and exposes the Cachix configuration used by the rest of the build.
 
 - `patchedNixpkgs`: the upstream Nixpkgs source after applying
   `patches/nixpkgs.patch`.
-- `cacheNixConfigPart`: the Ardos Cachix substituter and trusted public key,
-  mixed into host and cross package sets so existing build artefacts can be
-  reused instead of rebuilt locally.
 
 ## How it fits in the pipeline
 
