@@ -2,3 +2,5 @@
 /result-man
 /result-bin
 /result-cc-man
+build/
+.aider*

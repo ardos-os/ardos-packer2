@@ -8,6 +8,6 @@ cachix_cache := "ardos-os"
 stdenv:
     just build stdenv
     nix path-info {{nix_flags}} --recursive \
-        .#packages.x86_64-linux.ardos-bash-x86_64-linux-ardos \
+        .#packages.x86_64-linux.stdenv-x86_64-linux-ardos \
         | grep "ardos" \
         | cachix push {{cachix_cache}}
