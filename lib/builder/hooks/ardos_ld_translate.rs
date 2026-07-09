@@ -33,6 +33,14 @@ fn similar_mappings<'a>(
         .collect()
 }
 
+fn is_current_output_path(path: &str) -> bool {
+    let Ok(out) = env::var("out") else {
+        return false;
+    };
+
+    !out.is_empty() && (path == out || path.starts_with(&format!("{out}/")))
+}
+
 fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
     let path = path.as_ref();
     if !path.is_dir() {
@@ -66,6 +74,16 @@ fn translate_rpath(
         stdout.write_all(val.as_bytes())?;
         stdout.write_all(b"\0")?;
     } else if clean_str.starts_with("/nix/store/") {
+        if is_current_output_path(&clean_str) {
+            if env::var("NIX_DEBUG").unwrap_or_default() == "1" {
+                eprintln!(
+                    "[Ardos Linker Hook (Rust)] Stripping current output RPATH before install: {}",
+                    clean_str
+                );
+            }
+            return Ok(());
+        }
+
         unmapped_nix_paths.push(UnmappedNixPath {
             kind: "rpath",
             path: clean_str.clone(),

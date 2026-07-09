@@ -12,8 +12,10 @@ fn is_debug() -> bool {
         >= 1
 }
 
-// Pull every distinct /nix/store/* path out of a whitespace-separated string
-// of NIX-style flags. Stops at the first non-store, non-flag token.
+// Pull every distinct /nix/store/* output path out of a whitespace-separated
+// string of NIX-style flags. Paths often appear as -L/nix/store/.../lib or
+// -I/nix/store/.../include; normalize them back to the store output root so
+// they can match nix-support metadata and external mapping section headers.
 fn collect_store_paths(s: &str) -> BTreeSet<PathBuf> {
     let mut out = BTreeSet::new();
     // We tokenize on whitespace, but a path may contain trailing/leading
@@ -34,7 +36,9 @@ fn collect_store_paths(s: &str) -> BTreeSet<PathBuf> {
             // of a real path (closing quotes, commas).
             let p = p.trim_end_matches(|c: char| matches!(c, '\'' | '"' | ',' | ';' | ')' | ']'));
             if p.starts_with("/nix/store/") && p.len() > "/nix/store/".len() + 1 {
-                out.insert(PathBuf::from(p));
+                let rest = &p["/nix/store/".len()..];
+                let store_component = rest.split('/').next().unwrap_or(rest);
+                out.insert(PathBuf::from(format!("/nix/store/{store_component}")));
             }
             i = j;
         } else {
@@ -71,8 +75,12 @@ fn main() -> io::Result<()> {
     // 1. The package's own layout, if it was declared inline.
     if let Ok(layout_meta) = env::var("ardosLayoutMetadata") {
         if !layout_meta.is_empty() {
-            if is_debug() { eprintln!("[Ardos Setup] Adding current package layout metadata"); }
-            for line in layout_meta.lines() { process_layout_line(&line, &out, &mut map_file)?; }
+            if is_debug() {
+                eprintln!("[Ardos Setup] Adding current package layout metadata");
+            }
+            for line in layout_meta.lines() {
+                process_layout_line(&line, &out, &mut map_file)?;
+            }
         }
     }
 
@@ -83,11 +91,18 @@ fn main() -> io::Result<()> {
     //    and -L/-I/-rpath pointers into them.
     let mut store_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for v in [
-        "NIX_LDFLAGS", "NIX_LDFLAGS_BEFORE", "NIX_LDFLAGS_AFTER",
-        "NIX_CFLAGS_COMPILE", "NIX_CFLAGS_LINK",
+        "NIX_LDFLAGS",
+        "NIX_LDFLAGS_BEFORE",
+        "NIX_LDFLAGS_AFTER",
+        "NIX_CFLAGS_COMPILE",
+        "NIX_CFLAGS_LINK",
         "NIX_HARDENING_ENABLE", // contains no paths but harmless
-        "NIX_CC", "NIX_BINTOOLS", "NIX_CC_FOR_BUILD", "NIX_BINTOOLS_FOR_BUILD",
-        "NIX_CC_FOR_TARGET", "NIX_BINTOOLS_FOR_TARGET",
+        "NIX_CC",
+        "NIX_BINTOOLS",
+        "NIX_CC_FOR_BUILD",
+        "NIX_BINTOOLS_FOR_BUILD",
+        "NIX_CC_FOR_TARGET",
+        "NIX_BINTOOLS_FOR_TARGET",
     ] {
         if let Ok(val) = env::var(v) {
             for p in collect_store_paths(&val) {
@@ -97,11 +112,19 @@ fn main() -> io::Result<()> {
     }
     // 3. The explicit inputs the mkDerivation caller provided (rarely set
     //    in a hook context, but harmless to try).
-    for v in ["buildInputs", "nativeBuildInputs", "propagatedBuildInputs",
-              "hostInputs", "targetInputs", "NIX_BUILD_INPUTS",
-              "NIX_HOST_BUILD_INPUTS", "NIX_TARGET_BUILD_INPUTS",
-              "NIX_PROPAGATED_BUILD_INPUTS", "NIX_HOST_PROPAGATED_BUILD_INPUTS",
-              "NIX_TARGET_PROPAGATED_BUILD_INPUTS"] {
+    for v in [
+        "buildInputs",
+        "nativeBuildInputs",
+        "propagatedBuildInputs",
+        "hostInputs",
+        "targetInputs",
+        "NIX_BUILD_INPUTS",
+        "NIX_HOST_BUILD_INPUTS",
+        "NIX_TARGET_BUILD_INPUTS",
+        "NIX_PROPAGATED_BUILD_INPUTS",
+        "NIX_HOST_PROPAGATED_BUILD_INPUTS",
+        "NIX_TARGET_PROPAGATED_BUILD_INPUTS",
+    ] {
         if let Ok(val) = env::var(v) {
             for p in collect_store_paths(&val) {
                 store_paths.insert(p);
@@ -109,7 +132,10 @@ fn main() -> io::Result<()> {
         }
     }
 
-    eprintln!("[Ardos Setup] populate-map: found {} unique store paths to scan", store_paths.len());
+    eprintln!(
+        "[Ardos Setup] populate-map: found {} unique store paths to scan",
+        store_paths.len()
+    );
 
     // Also follow propagated-build-inputs and direct nix-store references
     // of each discovered path. This is what reaches glibc and libgcc when
@@ -123,14 +149,21 @@ fn main() -> io::Result<()> {
             if let Ok(s) = fs::read_to_string(&pbi) {
                 for line in s.lines() {
                     let line = line.trim();
-                    if line.is_empty() || line.starts_with('#') { continue; }
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
                     let q = PathBuf::from(line);
-                    if visited.insert(q.clone()) { queue.push(q); }
+                    if visited.insert(q.clone()) {
+                        queue.push(q);
+                    }
                 }
             }
         }
     }
-    eprintln!("[Ardos Setup] populate-map: closure-walk found {} total store paths", visited.len());
+    eprintln!(
+        "[Ardos Setup] populate-map: closure-walk found {} total store paths",
+        visited.len()
+    );
 
     // 4. For each store path, check for a nix-support/ardos-layout. If
     //    present, splice every "<rel> -> <abs>" line into our runtime map.
@@ -139,7 +172,9 @@ fn main() -> io::Result<()> {
         let layout_file = p.join("nix-support/ardos-layout");
         if layout_file.is_file() {
             layouts_seen += 1;
-            if is_debug() { eprintln!("[Ardos Setup] Found layout metadata for {}", p.display()); }
+            if is_debug() {
+                eprintln!("[Ardos Setup] Found layout metadata for {}", p.display());
+            }
             let file = File::open(&layout_file)?;
             let reader = BufReader::new(file);
             for line in reader.lines() {
@@ -164,7 +199,10 @@ fn main() -> io::Result<()> {
             let external_path = Path::new(&external_mappings);
             if external_path.is_file() {
                 if is_debug() {
-                    eprintln!("[Ardos Setup] Reading external runtime mappings from {}", external_path.display());
+                    eprintln!(
+                        "[Ardos Setup] Reading external runtime mappings from {}",
+                        external_path.display()
+                    );
                 }
 
                 let file = File::open(external_path)?;
@@ -183,7 +221,10 @@ fn main() -> io::Result<()> {
                         if active_applies {
                             external_layouts_seen += 1;
                             if is_debug() {
-                                eprintln!("[Ardos Setup] Applying external layout for {}", base.trim());
+                                eprintln!(
+                                    "[Ardos Setup] Applying external layout for {}",
+                                    base.trim()
+                                );
                             }
                         }
                         continue;
@@ -191,7 +232,11 @@ fn main() -> io::Result<()> {
 
                     if active_applies {
                         if let Some(base) = active_base.as_ref() {
-                            process_layout_line(trimmed, base.to_str().unwrap_or(""), &mut map_file)?;
+                            process_layout_line(
+                                trimmed,
+                                base.to_str().unwrap_or(""),
+                                &mut map_file,
+                            )?;
                         }
                     }
                 }
