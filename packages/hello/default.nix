@@ -19,13 +19,13 @@ mkArdosDerivation {
   dontPatchELF = true;
   dontShrinkRpath = true;
 
-  # Declare the runtime layout: the binary will live at /hello/hello
-  runtimeLayout = [
-    {
-      source = "bin/hello";
-      target = "/hello/hello";
-    }
-  ];
+  # Declare the runtime layout as a script. Even a single binary benefits from the
+  # script form: it documents intent and is the same shape you'd use for a package
+  # with thousands of files.
+  runtimeLayoutScript = ''
+    mkdir -p "$stage/hello"
+    ln -sfn "$out/bin/hello" "$stage/hello/hello"
+  '';
 
   buildPhase = ''
     runHook preBuild

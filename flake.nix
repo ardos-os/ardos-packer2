@@ -40,9 +40,9 @@
               inherit hellolibrary;
             };
           in {
+            #"cross-${targetTriple}" = ardosPacker.stdenv.crossPkgs;
+            #"toolchain-${targetTriple}" = ardosPacker.toolchain;
             "ardos-rom-${targetTriple}" = ardosPacker.ardosRom;
-            "cross-${targetTriple}" = ardosPacker.stdenv.crossPkgs;
-            "toolchain-${targetTriple}" = ardosPacker.toolchain;
             "stdenv-${targetTriple}" = ardosPacker.stdenv.crossPkgs.stdenv;
             "hellolibrary-${targetTriple}" = hellolibrary;
             "hello-${targetTriple}" = hello;
@@ -64,6 +64,44 @@
           (mkPackagesForBuildPlatform buildName buildPlatform)
       )
       ardosPackerLib.platforms;
+    checks = let
+      # Hardcoded platform lookup from your library
+      buildPlatform = ardosPackerLib.platforms."x86_64";
+
+      system = "x86_64-linux";
+      pkgs = mkPackagesForBuildPlatform "x86_64-linux" buildPlatform;
+      buildPkgs = import nixpkgs {inherit system;};
+      hello = pkgs."hello-x86_64-linux-ardos";
+    in {
+      hello-binary =
+        buildPkgs.runCommand "check-hello-binary" {
+          nativeBuildInputs = [buildPkgs.patchelf];
+        } ''
+          echo "Checking hello binary ELF properties..."
+          interp=$(patchelf --print-interpreter ${hello}/bin/hello)
+          echo "Interpreter: $interp"
+          rpath=$(patchelf --print-rpath ${hello}/bin/hello)
+          echo "RPATH: $rpath"
+
+          if [ "$interp" != "/ardos/lib/ld-linux-x86-64.so.2" ]; then
+            echo "Error: Interpreter is not /ardos/lib/ld-linux-x86-64.so.2! Actual: $interp" >&2
+            exit 1
+          fi
+
+          if [[ "$rpath" != *"/hellolibrary"* ]]; then
+            echo "Error: RPATH does not contain /hellolibrary" >&2
+            exit 1
+          fi
+
+          if [[ "$rpath" == *"/nix/store/"* ]]; then
+            echo "Error: RPATH contains /nix/store path" >&2
+            exit 1
+          fi
+
+          echo "All checks passed!"
+          touch $out
+        '';
+    };
 
     devShells =
       lib.mapAttrs'
@@ -88,12 +126,6 @@
                 cachix
                 git
               ];
-              shellHook = ''
-                echo "============================================="
-                echo "  Ardos Packer Development Shell Active      "
-                echo "  Available tools: just, alejandra, nom, git "
-                echo "============================================="
-              '';
             };
             stdenv = pkgs.mkShell {
               name = "ardos-packer-stdenv-devshell";
@@ -112,6 +144,45 @@
                 echo "  CC: $CC                                    "
                 echo "============================================="
               '';
+            };
+          }
+      )
+      ardosPackerLib.platforms;
+    apps =
+      lib.mapAttrs'
+      (
+        buildName: buildPlatform: let
+          system = mkNixBuildSystem buildPlatform;
+          pkgs = import nixpkgs {inherit system;};
+
+          # The path to your KDL layout. Nix will automatically
+          # copy this file to the Nix Store preserving its .kdl extension.
+          kdlPath = ./zellij-layouts/local-llm.kdl;
+
+          startAiScript = pkgs.writeShellScriptBin "start-ai" ''
+            set -euo pipefail
+
+            if ! command -v zellij &> /dev/null; then
+              echo "❌ Error: Zellij is not installed. Please install it to use this app."
+              exit 1
+            fi
+            export PATH=$PATH:${pkgs.codex}/bin:${pkgs.ollama-vulkan}/bin:${pkgs.aider-chat}/bin:${./zellij-layouts/scripts}
+            export VK_ICD_FILENAMES="${pkgs.mesa.drivers}/share/vulkan/icd.d/intel_icd.x86_64.json"
+            export LD_LIBRARY_PATH="${pkgs.vulkan-loader}/lib:${pkgs.mesa.drivers}/lib:''${LD_LIBRARY_PATH:-}"
+            echo "🤖 Initializing Ardos AI development environment inside Zellij..."
+
+            # Point Zellij directly to the immutable Nix store path of the KDL file
+            ${pkgs.zellij}/bin/zellij --layout "${kdlPath}"
+          '';
+        in
+          lib.nameValuePair system {
+            start-ai = {
+              type = "app";
+              program = "${startAiScript}/bin/start-ai";
+            };
+            vk = {
+              type = "app";
+              program = "${pkgs.vulkan-tools}/bin/vkcube";
             };
           }
       )

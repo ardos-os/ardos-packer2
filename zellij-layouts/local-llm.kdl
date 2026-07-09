@@ -1,0 +1,15 @@
+layout {
+    // Aba 1: Corre o servidor em background
+    tab name="🧠 Ollama Server" {
+        pane command="bash" {
+            args "-c" "ollama-server.sh"
+        }
+    }
+    
+    // Aba 2: Ocupa o ecrã inteiro e ganha o foco imediatamente
+    tab name="🤖 Coding Agent (Aider)" focus=true {
+        pane command="bash" {
+            args "-c" "aider.sh"
+        }
+    }
+}

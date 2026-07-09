@@ -2,6 +2,7 @@
   buildSystem,
   nixpkgs,
   targetPlatform,
+  rustScript,
   ...
 }: let
   cacheNixConfigPart = {
@@ -54,19 +55,23 @@
               nativeBuildInputs = (args.nativeBuildInputs or []) ++ [setupHook];
             }
         );
+      ardosSetupHookDrv = setupHook;
     };
 
   # Overlay to adapt Nixpkgs toolchain and packages for the Ardos target
   ardosOverlay = final: prev: let
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
-
     # Derivation for the Ardos layout mapping and shebang translation setup hook
-    ardosSetupHookDrv =
+    ardosSetupHookDrv = let
+      ardos-setup-tool = rustScript "ardos-setup-tool" ./setup-hooks/ardos_setup_tool.rs;
+      ardosSetupToolExe = "${ardos-setup-tool}/bin/ardos-setup-tool";
+    in
       prev.makeSetupHook {
         name = "ardos-setup-hook";
-      }
-      ./setup-hooks/ardos-map.sh;
+      } (prev.replaceVars ./setup-hooks/ardos-map.sh {
+        ardosSetupTool = ardosSetupToolExe;
+      });
   in
     if prev.stdenv.targetPlatform.config == targetPlatform.config
     then {

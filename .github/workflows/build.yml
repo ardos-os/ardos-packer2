@@ -1,0 +1,29 @@
+name: build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  hello-binary:
+    name: Check hello binary (x86_64-linux-ardos)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v9
+
+      - name: Enable experimental features
+        run: |
+          mkdir -p ~/.config/nix
+          cat > ~/.config/nix/nix.conf <<'EOF'
+          experimental-features = nix-command flakes
+          extra-platforms = x86_64-linux aarch64-linux
+          EOF
+
+      - name: Build hello-binary check
+        run: nix build .#checks.x86_64-linux.hello-binary --print-build-logs

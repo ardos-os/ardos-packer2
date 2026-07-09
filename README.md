@@ -44,12 +44,14 @@ When the ROM generator constructs the final squashfs, it follows these symlinks 
 
 Because compiled binaries must find their shared library dependencies (like `libc.so` or `libhellolibrary.so`) at runtime in their final Ardos paths (e.g. `/ardos/lib` or `/hellolibrary`), we cannot let them retain Nix store references in their `RUNPATH` headers. At the same time, we must avoid running fragile tools like `patchelf` on final images.
 
-To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/stdenv/hooks/ld-wrapper-hook](file:///lib/stdenv/hooks/ld-wrapper-hook).
+To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/stdenv/hooks/ld-wrapper-hook](file:///lib/stdenv/hooks/ld-wrapper-hook) (injector) + [lib/stdenv/hooks/ld-wrapper-hook-impl](lib/stdenv/hooks/ld-wrapper-hook-impl) (bash wrapper) + [lib/stdenv/hooks/ardos-ld-translate.rs](lib/stdenv/hooks/ardos-ld-translate.rs) (rust script with the actual argument translation).
 * During package compilation, an Ardos setup hook aggregates all `runtimeLayout` maps of the package and its dependencies into a single translation file (`$ARDOS_RUNTIME_MAP`).
 * The linker wrapper intercepts all `-rpath` flags and translates them:
   * If a path matches a Nix store location in the translation map, it is replaced with the target Ardos path (e.g., `/nix/store/.../lib` ➔ `/ardos/lib`).
   * If an RPATH points to an unmapped Nix store path (like bootstrap paths), it is **stripped** to prevent store leakage.
 * The resulting ELF binaries are produced directly pointing to their runtime paths.
+
+The injector + implementation setup is needed so changes to the implementation do not trigger unnecessary rebuilds to other derivations not using `mkArdosDerivation`. `stdenv.mkDerivation` sees a stub, and `mkArdosDerivation` injects the implementation path into the stub through an environment variable.
 
 ### 3. Shebang Rewriting (`ardosTranslateShebangs`)
 
@@ -72,3 +74,22 @@ We use `just` as our task runner. The task configuration is split into discovera
   * `just cache stdenv`: Builds the toolchain and pushes Ardos-specific paths to the Cachix binary cache.
 * **Formatting** (`justfiles/fmt.just`):
   * `just fmt`: Formats all Nix files in the repository using `alejandra`.
+
+
+## AI Usage
+
+We do use a bit of AI, especially because nixpkgs is really complex and we do often run into issues because of something that happens behind the scenes we don't usually notice. Don't see the use of AI here as slop, it is being used to deal with puzzling issues
+we just want to quickly get over with and deal with technical debt.
+
+The repository features a local LLM setup you can call with
+
+```
+nix run .#start-ai
+```
+
+If you have a beefy machine, there's no need to beg billy G for tokens: you can download some local models and use them with
+your favorite Agent CLI like codex, claude code and others, but expect to need at least 64GB of RAM and a good dedicated GPU for a
+good experience.
+
+If you have a weak machine with no option to host a minimally usable model for coding,
+you'll have to use ollama cloud models, which are not bad at all and the plan is not that expensive. Codex works best with `minimax-m3:cloud` model if you use that, the other models tend to think too much or not understand how to work with codex tools well.
