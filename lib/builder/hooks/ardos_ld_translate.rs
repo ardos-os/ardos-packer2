@@ -52,6 +52,34 @@ fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
         Err(_) => true,
     }
 }
+
+fn translate_mapped_path(
+    path_map: &BTreeMap<String, String>,
+    lookup_path: &str,
+) -> Option<(String, String)> {
+    path_map
+        .iter()
+        .filter_map(|(nix_path, ardos_path)| {
+            if lookup_path == nix_path {
+                Some((nix_path, ardos_path, ""))
+            } else {
+                lookup_path
+                    .strip_prefix(nix_path)
+                    .and_then(|suffix| suffix.strip_prefix('/'))
+                    .map(|suffix| (nix_path, ardos_path, suffix))
+            }
+        })
+        .max_by_key(|(nix_path, _, _)| nix_path.len())
+        .map(|(nix_path, ardos_path, suffix)| {
+            let translated = if suffix.is_empty() {
+                ardos_path.clone()
+            } else {
+                format!("{}/{}", ardos_path.trim_end_matches('/'), suffix)
+            };
+            (nix_path.clone(), translated)
+        })
+}
+
 fn translate_rpath(
     path_map: &BTreeMap<String, String>,
     flag: &str,
@@ -61,8 +89,8 @@ fn translate_rpath(
     used_mappings: &mut BTreeSet<String>,
 ) -> io::Result<()> {
     let clean_str = PathBuf::from(val).to_string_lossy().into_owned();
-    if let Some(translated) = path_map.get(&clean_str) {
-        used_mappings.insert(clean_str.clone());
+    if let Some((matched_path, translated)) = translate_mapped_path(path_map, &clean_str) {
+        used_mappings.insert(matched_path);
         eprintln!("Translating library {clean_str} -> {translated}");
         stdout.write_all(flag.as_bytes())?;
         stdout.write_all(b"\0")?;
@@ -113,20 +141,10 @@ fn translate_dynamic_linker(
         let canon_val = Path::new(val)
             .canonicalize()
             .unwrap_or_else(|_| PathBuf::from(val));
-        let linker_dir = canon_val
-            .parent()
-            .unwrap_or(Path::new(""))
-            .to_string_lossy()
-            .into_owned();
-        let linker_base = canon_val
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
+        let linker_path = canon_val.to_string_lossy().into_owned();
 
-        if let Some(translated_dir) = path_map.get(&linker_dir) {
-            used_mappings.insert(linker_dir.clone());
-            let translated = format!("{}/{}", translated_dir, linker_base);
+        if let Some((matched_path, translated)) = translate_mapped_path(path_map, &linker_path) {
+            used_mappings.insert(matched_path);
             if env::var("NIX_DEBUG").unwrap_or_default() == "1" {
                 eprintln!(
                     "[Ardos Linker Hook (Rust)] Translating dynamic linker: {} -> {}",
@@ -141,7 +159,7 @@ fn translate_dynamic_linker(
             unmapped_nix_paths.push(UnmappedNixPath {
                 kind: "interpreter",
                 path: val.to_string(),
-                lookup_path: linker_dir,
+                lookup_path: linker_path,
             });
         }
     } else {
@@ -284,4 +302,64 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+        entries
+            .iter()
+            .map(|(from, to)| ((*from).to_string(), (*to).to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn translates_exact_mapping() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib", "/ardos/lib")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib"),
+            Some((
+                "/nix/store/hash-pkg/lib".to_string(),
+                "/ardos/lib".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn translates_file_inside_mapped_folder() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib", "/ardos/lib")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib/ld.so"),
+            Some((
+                "/nix/store/hash-pkg/lib".to_string(),
+                "/ardos/lib/ld.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn does_not_match_partial_path_component() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib", "/ardos/lib")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib64/ld.so"),
+            None
+        );
+    }
+
+    #[test]
+    fn prefers_longest_mapping() {
+        let mappings = map(&[
+            ("/nix/store/hash-pkg", "/ardos/pkg"),
+            ("/nix/store/hash-pkg/lib", "/ardos/lib"),
+        ]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib/ld.so"),
+            Some((
+                "/nix/store/hash-pkg/lib".to_string(),
+                "/ardos/lib/ld.so".to_string()
+            ))
+        );
+    }
 }

@@ -65,7 +65,10 @@ fn main() -> io::Result<()> {
         if let Some((src_rel, dest_path)) = trimmed.split_once(" -> ") {
             let src_path = Path::new(base_dir).join(src_rel.trim());
             let dest_path = Path::new(dest_path.trim());
-            if let (Some(src_dir), Some(dest_dir)) = (src_path.parent(), dest_path.parent()) {
+            if src_path.is_dir() && !src_path.is_symlink() {
+                writeln!(w, "{} -> {}", src_path.display(), dest_path.display())?;
+            } else if let (Some(src_dir), Some(dest_dir)) = (src_path.parent(), dest_path.parent())
+            {
                 writeln!(w, "{} -> {}", src_dir.display(), dest_dir.display())?;
             }
         }
