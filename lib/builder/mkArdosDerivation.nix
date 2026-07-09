@@ -216,6 +216,15 @@ in rec {
                 sed 's/^/  /' $out/nix-support/ardos-layout >&2
               fi
             fi
+
+            # Keep the link-time runtime map as output metadata. The final ROM
+            # never copies nix-support, but this file intentionally preserves
+            # Nix references to mapped runtime dependencies so closureInfo can
+            # discover transitive runtime packages even after RPATH/interpreter
+            # paths have been translated away from /nix/store.
+            if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
+              cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
+            fi
           '';
       });
   in

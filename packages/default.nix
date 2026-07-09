@@ -44,9 +44,14 @@ let
     targetPackages = lib.concatMapAttrs (targetTriple: ardosPacker: let
       hellolibrary = ardosPacker.callPackage ./hellolibrary {};
       hello = ardosPacker.callPackage ./hello {inherit hellolibrary;};
-    in {
-      "ardos-rom-${targetTriple}" = ardosPacker.rom {
+      sysroot = ardosPacker.sysroot {
+        name = "ardos-sysroot-${targetTriple}";
         includePackages = [hello];
+      };
+    in {
+      "ardos-sysroot-${targetTriple}" = sysroot;
+      "ardos-rom-${targetTriple}" = ardosPacker.rom {
+        inherit sysroot;
       };
       "stdenv-${targetTriple}" = ardosPacker.crossPkgs.stdenv;
       "hellolibrary-${targetTriple}" = hellolibrary;
