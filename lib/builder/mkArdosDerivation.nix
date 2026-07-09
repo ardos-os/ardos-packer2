@@ -20,11 +20,11 @@
 {
   nixpkgs,
   crossPkgs,
-  rustScript
+  rustScript,
+  externalMappings ? [],
 }: let
   lib = nixpkgs.lib;
   stdenv = crossPkgs.stdenv;
-  glibc = crossPkgs.glibc;
 
   layoutListToScript = entries:
     lib.concatMapStrings (entry: ''
@@ -32,6 +32,51 @@
       ln -sfn "\$out/${entry.source}" "\$stage${entry.target}"
     '')
     entries;
+
+  mappingScriptToLayout = mapping: ''
+    mappings_out="$out"
+    echo "# ardos-external-mapping ${mapping.drv}" >> "$mappings_out"
+    stage=$(mktemp -d -t ardos-external-layout-XXXXXX)
+    (
+      out=${mapping.drv} stage=$stage bash -c ${lib.escapeShellArg mapping.runtimeLayoutScript}
+
+      while IFS= read -r -d $'\0' entry; do
+        rel="''${entry#$stage/}"
+        [ "$rel" = "$entry" ] && continue
+
+        target="/$rel"
+        if [ -L "$entry" ]; then
+          pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
+          if [ -n "$pointed" ] && [[ "$pointed" == "${mapping.drv}"/* ]]; then
+            src_rel="''${pointed#${mapping.drv}/}"
+          else
+            src_rel=$(readlink -- "$entry")
+          fi
+        elif [ -f "$entry" ]; then
+          src_rel="''${entry#${mapping.drv}/}"
+          if [ "$src_rel" = "$entry" ]; then
+            src_rel="$entry"
+          fi
+        else
+          continue
+        fi
+
+        printf '%s -> %s\n' "$src_rel" "$target" >> "$mappings_out"
+      done < <(find "$stage" -mindepth 1 -print0)
+    )
+    rm -rf "$stage"
+  '';
+
+  externalMappingsFile =
+    if externalMappings == []
+    then null
+    else
+      nixpkgs.runCommand "ardos-external-runtime-mappings" {
+        nativeBuildInputs = [nixpkgs.coreutils nixpkgs.findutils nixpkgs.bash];
+      } ''
+        : > "$out"
+        ${lib.concatMapStringsSep "\n" mappingScriptToLayout externalMappings}
+      '';
 
   # Build a runtimeTree (materialized symlink structure of target paths)
   mkRuntimeTree = {
@@ -100,6 +145,7 @@ in rec {
           ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos_ld_translate";
           in ardosEarlyInitExe;
         __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
+        ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
         NIX_DEBUG = "1";
 
         # Auto-derive ardos-layout from the developer-provided script.

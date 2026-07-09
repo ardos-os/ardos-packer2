@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::fs;
+
+#[derive(Debug)]
+struct UnmappedNixPath {
+    kind: &'static str,
+    path: String,
+}
 
 fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
     let path = path.as_ref();
@@ -21,11 +27,9 @@ fn translate_rpath(
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
+    unmapped_nix_paths: &mut Vec<UnmappedNixPath>,
 ) -> io::Result<()> {
     let clean_str = PathBuf::from(val).to_string_lossy().into_owned();
-    if is_dir_empty(&clean_str) {
-        return Ok(());
-    }
     if let Some(translated) = path_map.get(&clean_str) {
         eprintln!("Translating library {clean_str} -> {translated}");
         stdout.write_all(flag.as_bytes())?;
@@ -38,14 +42,12 @@ fn translate_rpath(
         stdout.write_all(val.as_bytes())?;
         stdout.write_all(b"\0")?;
     } else if clean_str.starts_with("/nix/store/") {
-        eprintln!(
-            "\n========================================================================\n\
-             [Ardos Linker Error] RPATH points to an unmapped Nix store path:\n  {}\n\n\
-             Reason: The dependency has no Ardos runtime mapping.\n\
-             ========================================================================",
-            val
-        );
-        std::process::exit(1);
+        unmapped_nix_paths.push(UnmappedNixPath {
+            kind: "rpath",
+            path: clean_str,
+        });
+    } else if is_dir_empty(&clean_str) {
+        return Ok(());
     } else {
         eprintln!("other libraries: {flag} {val}");
         stdout.write_all(flag.as_bytes())?;
@@ -60,6 +62,7 @@ fn translate_dynamic_linker(
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
+    unmapped_nix_paths: &mut Vec<UnmappedNixPath>,
 ) -> io::Result<()> {
     if val.starts_with("/nix/store/") {
         // Canonicalize to resolve lib64/lib32 symlinks -> /lib
@@ -90,16 +93,10 @@ fn translate_dynamic_linker(
             stdout.write_all(translated.as_bytes())?;
             stdout.write_all(b"\0")?;
         } else {
-            if env::var("NIX_DEBUG").unwrap_or_default() == "1" {
-                eprintln!(
-                    "[Ardos Linker Hook (Rust)] WARNING: Could not translate dynamic linker path: {}",
-                    val
-                );
-            }
-            stdout.write_all(flag.as_bytes())?;
-            stdout.write_all(b"\0")?;
-            stdout.write_all(val.as_bytes())?;
-            stdout.write_all(b"\0")?;
+            unmapped_nix_paths.push(UnmappedNixPath {
+                kind: "interpreter",
+                path: val.to_string(),
+            });
         }
     } else {
         stdout.write_all(flag.as_bytes())?;
@@ -140,23 +137,42 @@ fn main() -> io::Result<()> {
     let mut stdout = io::stdout();
     stdout.write_all(b"--copy-dt-needed-entries")?;
     stdout.write_all(b"\0")?;
+    let mut unmapped_nix_paths = Vec::new();
     let mut i = 0;
     while i < input_args.len() {
         let arg = &input_args[i];
 
         // Handle "-rpath /path" (two-arg form)
         if arg == "-rpath" && i + 1 < input_args.len() {
-            translate_rpath(&path_map, "-rpath", &input_args[i + 1], &mut stdout)?;
+            translate_rpath(
+                &path_map,
+                "-rpath",
+                &input_args[i + 1],
+                &mut stdout,
+                &mut unmapped_nix_paths,
+            )?;
             i += 2;
         // Handle "-rpath=/path" (combined form)
         } else if let Some(val) = arg.strip_prefix("-rpath=") {
-            translate_rpath(&path_map, "-rpath", val, &mut stdout)?;
+            translate_rpath(
+                &path_map,
+                "-rpath",
+                val,
+                &mut stdout,
+                &mut unmapped_nix_paths,
+            )?;
             i += 1;
         // Handle "-dynamic-linker /path" or "--dynamic-linker /path" (two-arg)
         } else if (arg == "-dynamic-linker" || arg == "--dynamic-linker")
             && i + 1 < input_args.len()
         {
-            translate_dynamic_linker(&path_map, arg, &input_args[i + 1], &mut stdout)?;
+            translate_dynamic_linker(
+                &path_map,
+                arg,
+                &input_args[i + 1],
+                &mut stdout,
+                &mut unmapped_nix_paths,
+            )?;
             i += 2;
         // Handle "-dynamic-linker=/path" or "--dynamic-linker=/path" (combined form)
         } else if let Some(val) = arg
@@ -168,7 +184,7 @@ fn main() -> io::Result<()> {
             } else {
                 "-dynamic-linker"
             };
-            translate_dynamic_linker(&path_map, flag, val, &mut stdout)?;
+            translate_dynamic_linker(&path_map, flag, val, &mut stdout, &mut unmapped_nix_paths)?;
             i += 1;
         } else {
             stdout.write_all(arg.as_bytes())?;
@@ -176,5 +192,21 @@ fn main() -> io::Result<()> {
             i += 1;
         }
     }
+
+    if !unmapped_nix_paths.is_empty() {
+        eprintln!(
+            "\n========================================================================\n\
+             [Ardos Linker Error] Unmapped Nix store runtime paths remained\n\
+             in linker RPATH/interpreter arguments.\n\n\
+             Reason: every runtime dependency must have an Ardos runtime mapping.\n\
+             Unmapped paths:"
+        );
+        for unmapped in &unmapped_nix_paths {
+            eprintln!("  - {}: {}", unmapped.kind, unmapped.path);
+        }
+        eprintln!("========================================================================");
+        std::process::exit(1);
+    }
+
     Ok(())
 }

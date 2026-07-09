@@ -26,6 +26,7 @@ in rec {
   #                   (e.g. "x86_64-linux")
   init = args: let
     inherit (args) targetPlatform buildSystem;
+    externalMappingsArg = args.externalMappings or [];
     host = import ./host {inherit nixpkgs;};
     toolchain = import ./toolchain {
       inherit nixpkgs targetPlatform buildSystem host;
@@ -35,8 +36,12 @@ in rec {
       };
     };
     inherit (toolchain) crossPkgs buildPkgs;
+    externalMappings =
+      if builtins.isFunction externalMappingsArg
+      then externalMappingsArg crossPkgs
+      else externalMappingsArg;
     builder = import ./builder {
-      inherit buildPkgs crossPkgs;
+      inherit buildPkgs crossPkgs externalMappings;
     };
   in {
     inherit (toolchain) toolchain;
