@@ -40,6 +40,34 @@ During the build, this mapping is stored as metadata in the package's output dir
 
 When the ROM generator constructs the final squashfs, it follows these symlinks to assemble the files at their final target paths, checking for collisions between packages.
 
+Some target packages come directly from nixpkgs and cannot reasonably be
+changed just to add Ardos metadata. `ardosPackerLib.init` therefore accepts an
+`externalMappings` option: a list (or a function from `crossPkgs` to a list) of
+`{ drv, runtimeLayoutScript }` entries. Each script has the same `$out` and
+`$stage` interface as `mkArdosDerivation`, but it is evaluated outside the
+derivation it describes. At link time, the setup hook only applies an external
+mapping if that `drv` is actually present in the discovered dependency closure,
+so generic mappings for packages such as libc or compiler runtime libraries do
+not leak into unrelated outputs.
+
+```nix
+ardosPackerLib.init {
+  inherit targetPlatform buildSystem;
+  externalMappings = pkgs: [
+    {
+      drv = pkgs.glibc;
+      runtimeLayoutScript = ''
+        for so in "$out"/lib/*.so*; do
+          [ -e "$so" ] || continue
+          mkdir -p "$stage/ardos/lib"
+          ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
+        done
+      '';
+    }
+  ];
+}
+```
+
 ### 2. Linker RUNPATH Translation (`ld-wrapper-hook`)
 
 Because compiled binaries must find their shared library dependencies (like `libc.so` or `libhellolibrary.so`) at runtime in their final Ardos paths (e.g. `/ardos/lib` or `/hellolibrary`), we cannot let them retain Nix store references in their `RUNPATH` headers. At the same time, we must avoid running fragile tools like `patchelf` on final images.

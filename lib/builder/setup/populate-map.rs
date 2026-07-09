@@ -53,7 +53,7 @@ fn main() -> io::Result<()> {
     let out = env::var("out").unwrap_or_default();
     let mut map_file = OpenOptions::new().append(true).open(runtime_map_path)?;
 
-    let mut process_layout_line = |line: &str, base_dir: &str, w: &mut File| -> io::Result<()> {
+    let process_layout_line = |line: &str, base_dir: &str, w: &mut File| -> io::Result<()> {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             return Ok(());
@@ -147,6 +147,58 @@ fn main() -> io::Result<()> {
             }
         }
     }
-    eprintln!("[Ardos Setup] populate-map: ingested ardos-layout from {layouts_seen} dependencies");
+
+    // 5. Finally, splice externally supplied layouts for dependencies that do
+    //    not carry nix-support/ardos-layout themselves (for example packages
+    //    coming straight from nixpkgs). The file is sectioned by base store path:
+    //
+    //      # ardos-external-mapping /nix/store/...
+    //      lib/libfoo.so -> /ardos/lib/libfoo.so
+    //
+    //    A section only applies if that base store path is in the discovered
+    //    link-time closure, so adding global external mappings does not inject
+    //    unused runtime paths into unrelated builds.
+    let mut external_layouts_seen = 0usize;
+    if let Ok(external_mappings) = env::var("ARDOS_EXTERNAL_MAPPINGS") {
+        if !external_mappings.is_empty() {
+            let external_path = Path::new(&external_mappings);
+            if external_path.is_file() {
+                if is_debug() {
+                    eprintln!("[Ardos Setup] Reading external runtime mappings from {}", external_path.display());
+                }
+
+                let file = File::open(external_path)?;
+                let reader = BufReader::new(file);
+                let mut active_base: Option<PathBuf> = None;
+                let mut active_applies = false;
+
+                for line in reader.lines() {
+                    let line = line?;
+                    let trimmed = line.trim();
+
+                    if let Some(base) = trimmed.strip_prefix("# ardos-external-mapping ") {
+                        let base_path = PathBuf::from(base.trim());
+                        active_applies = visited.contains(&base_path);
+                        active_base = Some(base_path);
+                        if active_applies {
+                            external_layouts_seen += 1;
+                            if is_debug() {
+                                eprintln!("[Ardos Setup] Applying external layout for {}", base.trim());
+                            }
+                        }
+                        continue;
+                    }
+
+                    if active_applies {
+                        if let Some(base) = active_base.as_ref() {
+                            process_layout_line(trimmed, base.to_str().unwrap_or(""), &mut map_file)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!("[Ardos Setup] populate-map: ingested ardos-layout from {layouts_seen} dependencies and {external_layouts_seen} external mappings");
     Ok(())
 }
