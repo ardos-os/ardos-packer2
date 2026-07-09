@@ -46,31 +46,33 @@ in rec {
   in let
     instance = rec {
       inherit buildPkgs crossPkgs;
-    inherit (builder) mkArdosDerivation mkRuntimeTree;
+      inherit (builder) mkArdosDerivation mkRuntimeTree;
 
-    stdenv = crossPkgs.stdenv;
-    cc = toolchain.toolchain.cc;
+      stdenv = crossPkgs.stdenv;
+      cc = toolchain.toolchain.cc;
 
-    callPackage = path: overrides:
-      crossPkgs.callPackage path ({
-        inherit mkArdosDerivation mkRuntimeTree;
-        ap2 = instance;
-        ap2Instance = instance;
-      } // overrides);
+      callPackage = path: overrides:
+        let
+          scope = crossPkgs // {
+            inherit mkArdosDerivation mkRuntimeTree;
+            ap2 = instance;
+          };
+        in
+          lib.callPackageWith scope path overrides;
 
-    rom = {
-      includePackages,
-      name ? "ardos-rom",
-    }: let
-      closure = buildPkgs.closureInfo {rootPaths = includePackages;};
-    in
-      buildPkgs.runCommand "${name}.squashfs" {
-        nativeBuildInputs = [
-          buildPkgs.coreutils
-          buildPkgs.findutils
-          buildPkgs.squashfsTools
-        ];
-      } ''
+      rom = {
+        includePackages,
+        name ? "ardos-rom",
+      }: let
+        closure = buildPkgs.closureInfo {rootPaths = includePackages;};
+      in
+        buildPkgs.runCommand "${name}.squashfs" {
+          nativeBuildInputs = [
+            buildPkgs.coreutils
+            buildPkgs.findutils
+            buildPkgs.squashfsTools
+          ];
+        } ''
         root=$(mktemp -d)
 
         while IFS= read -r store_path; do
@@ -93,8 +95,6 @@ in rec {
         mksquashfs "$root" "$out" -noappend -all-root -no-progress
       '';
 
-    # Backwards-compatible name for existing users.
-      ardosRom = rom {includePackages = [];};
     };
   in
     instance;
