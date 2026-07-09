@@ -43,11 +43,59 @@ in rec {
     builder = import ./builder {
       inherit buildPkgs crossPkgs externalMappings;
     };
-  in {
-    inherit crossPkgs;
+  in let
+    instance = rec {
+      inherit buildPkgs crossPkgs;
     inherit (builder) mkArdosDerivation mkRuntimeTree;
+
+    stdenv = crossPkgs.stdenv;
     cc = toolchain.toolchain.cc;
-    # Placeholder: real implementation lands with Milestone 3 (ROM generator).
-    ardosRom = import ./ardosRom.nix toolchain;
-  };
+
+    callPackage = path: overrides:
+      crossPkgs.callPackage path ({
+        inherit mkArdosDerivation mkRuntimeTree;
+        ap2 = instance;
+        ap2Instance = instance;
+      } // overrides);
+
+    rom = {
+      includePackages,
+      name ? "ardos-rom",
+    }: let
+      closure = buildPkgs.closureInfo {rootPaths = includePackages;};
+    in
+      buildPkgs.runCommand "${name}.squashfs" {
+        nativeBuildInputs = [
+          buildPkgs.coreutils
+          buildPkgs.findutils
+          buildPkgs.squashfsTools
+        ];
+      } ''
+        root=$(mktemp -d)
+
+        while IFS= read -r store_path; do
+          layout="$store_path/nix-support/ardos-layout"
+          [ -f "$layout" ] || continue
+
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in ""|\#*) continue ;; esac
+
+            src_rel="''${line%% -> *}"
+            dest_abs="''${line#* -> }"
+            src_path="$store_path/$src_rel"
+            dest_path="$root/''${dest_abs#/}"
+
+            mkdir -p "$(dirname "$dest_path")"
+            ln -sfn "$src_path" "$dest_path"
+          done < "$layout"
+        done < ${closure}/store-paths
+
+        mksquashfs "$root" "$out" -noappend -all-root -no-progress
+      '';
+
+    # Backwards-compatible name for existing users.
+      ardosRom = rom {includePackages = [];};
+    };
+  in
+    instance;
 }
