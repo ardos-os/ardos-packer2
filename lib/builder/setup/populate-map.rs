@@ -159,6 +159,28 @@ fn main() -> io::Result<()> {
                 }
             }
         }
+
+        // Toolchain wrappers often hide their real target libraries in small
+        // nix-support metadata files (for example cc-ldflags containing
+        // -L/nix/store/...-glibc/lib). Scan those files too; otherwise libc
+        // and compiler runtime mappings may never be considered even though
+        // the eventual linker invocation receives them from the wrapper.
+        let nix_support = p.join("nix-support");
+        if let Ok(entries) = fs::read_dir(&nix_support) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                if let Ok(s) = fs::read_to_string(&path) {
+                    for q in collect_store_paths(&s) {
+                        if visited.insert(q.clone()) {
+                            queue.push(q);
+                        }
+                    }
+                }
+            }
+        }
     }
     eprintln!(
         "[Ardos Setup] populate-map: closure-walk found {} total store paths",
