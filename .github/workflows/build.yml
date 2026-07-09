@@ -23,7 +23,6 @@ jobs:
         target_triple:
           - x86_64-linux-ardos
           - aarch64-linux-ardos
-          - riscv64-linux-ardos
         package:
           - stdenv
           - hellolibrary
