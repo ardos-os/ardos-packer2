@@ -20,17 +20,34 @@ fn main() -> io::Result<()> {
     let nix_support = out.join("nix-support");
     let layout_file_path = nix_support.join("ardos-layout");
 
-    eprintln!("[Ardos Layout] generate-layout: layout_file_path={} exists={}", layout_file_path.display(), layout_file_path.is_file());
+    eprintln!(
+        "[Ardos Layout] generate-layout: layout_file_path={} exists={}",
+        layout_file_path.display(),
+        layout_file_path.is_file()
+    );
     if layout_file_path.is_file() {
-        if is_debug() { eprintln!("[Ardos Layout] Using existing custom layout metadata in {}", out.display()); }
+        if is_debug() {
+            eprintln!(
+                "[Ardos Layout] Using existing custom layout metadata in {}",
+                out.display()
+            );
+        }
         return Ok(());
     }
 
-    eprintln!("[Ardos Layout] generate-layout invoked: out={}", out.display());
+    eprintln!(
+        "[Ardos Layout] generate-layout invoked: out={}",
+        out.display()
+    );
     fs::create_dir_all(&nix_support)?;
     let mut layout_file = File::create(&layout_file_path)?;
 
-    if is_debug() { eprintln!("[Ardos Layout] Generating default layout mapping for {}", out.display()); }
+    if is_debug() {
+        eprintln!(
+            "[Ardos Layout] Generating default layout mapping for {}",
+            out.display()
+        );
+    }
 
     let mut map_bin_dir = |dir_name: &str| -> io::Result<()> {
         let dir_path = out.join(dir_name);
@@ -41,7 +58,10 @@ fn main() -> io::Result<()> {
                 if file_type.is_file() || file_type.is_symlink() {
                     if let Some(file_name) = entry.file_name().to_str() {
                         if file_name.contains(".so") {
-                            writeln!(layout_file, "{dir_name}/{file_name} -> /ardos/bin/{file_name}")?;
+                            writeln!(
+                                layout_file,
+                                "{dir_name}/{file_name} -> /ardos/bin/{file_name}"
+                            )?;
                         }
                     }
                 }

@@ -54,14 +54,15 @@ in rec {
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
 
-      callPackage = path: overrides:
-        let
-          scope = crossPkgs // {
+      callPackage = path: overrides: let
+        scope =
+          crossPkgs
+          // {
             inherit mkArdosDerivation mkRuntimeTree;
             ap2 = instance;
           };
-        in
-          lib.callPackageWith scope path overrides;
+      in
+        lib.callPackageWith scope path overrides;
 
       sysroot = sysrootLib.mkSysroot;
 
@@ -76,7 +77,6 @@ in rec {
         } ''
           mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
         '';
-
     };
   in
     instance;

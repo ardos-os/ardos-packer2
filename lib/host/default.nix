@@ -7,10 +7,9 @@
 # The toolchain stage (Stage 1) re-imports the result of this stage. It does
 # not need to know about the patches; it just gets `hostPatchedNixpkgs` back.
 {nixpkgs}: let
-  beforePatchBuildPkgs =
-    import nixpkgs {
-      system = "x86_64-linux"; # placeholder; the toolchain stage re-imports per buildSystem
-    };
+  beforePatchBuildPkgs = import nixpkgs {
+    system = "x86_64-linux"; # placeholder; the toolchain stage re-imports per buildSystem
+  };
 
   patchedNixpkgs = beforePatchBuildPkgs.applyPatches {
     name = "nixpkgs-ardos";

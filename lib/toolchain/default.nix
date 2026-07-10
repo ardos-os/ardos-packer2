@@ -135,18 +135,16 @@
     }
     else {};
 in rec {
-  buildPkgs =
-    import patchedNixpkgs {
-      system = buildSystem;
-    };
+  buildPkgs = import patchedNixpkgs {
+    system = buildSystem;
+  };
 
   crossPkgs = let
-    pkgs =
-      import patchedNixpkgs {
-        system = buildPkgs.stdenv.buildPlatform.system;
-        crossSystem = targetPlatform;
-        overlays = [ardosOverlay];
-      };
+    pkgs = import patchedNixpkgs {
+      system = buildPkgs.stdenv.buildPlatform.system;
+      crossSystem = targetPlatform;
+      overlays = [ardosOverlay];
+    };
   in
     assert buildPkgs.stdenv.buildPlatform.config != targetPlatform.config;
     assert pkgs.stdenv.buildPlatform.config == buildPkgs.stdenv.buildPlatform.config;

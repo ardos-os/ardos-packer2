@@ -4,7 +4,7 @@
     cpu,
     llvmTarget,
     rust ? {},
-    enableDevShell ? true
+    enableDevShell ? true,
   }: {
     name = cpu;
     value = {

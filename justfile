@@ -1,26 +1,29 @@
 # Ardos Packer 2 — Development Task Runner
 
+
+
+
+# Commands for building ardos-packer's outputs
 mod build 'justfiles/build.just'
-mod cache 'justfiles/cache.just'
+
+# Format code
 mod fmt 'justfiles/fmt.just'
+# Show all available recipes including submodules
+default:
+    @just --list --list-submodules
+
 
 # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
 env target="default":
     #!/usr/bin/env bash
     set -euo pipefail
-    case "{{target}}" in
-        default)
-            nix develop .#default --extra-experimental-features "nix-command flakes"
-            ;;
-        stdenv)
-            nix develop .#stdenv --extra-experimental-features "nix-command flakes"
-            ;;
-        *)
-            echo "Unknown env target '{{target}}'. Available: default, stdenv" >&2
-            exit 1
-            ;;
-    esac
+    nix develop .#{{target}}
 
-# Show all available recipes including submodules
-default:
-    @just --list --list-submodules
+
+# Starts local ollama server and ollama client in a preset zellij layout
+start-ai:
+    nix run ".#start-ai"
+
+alias check := build::check
+alias test := build::check
+alias format := fmt

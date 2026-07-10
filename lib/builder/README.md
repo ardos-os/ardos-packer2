@@ -38,11 +38,11 @@ provided by dependency layout metadata.
 
 1. The target `stdenv` from `lib/toolchain` injects the setup hook from
    `setup/`.
-2. Setup tools collect declared layouts from the current package and its visible
+1. Setup tools collect declared layouts from the current package and its visible
    dependencies into `ARDOS_RUNTIME_MAP`.
-3. The linker hook in `hooks/` translates Nix-store RPATH and dynamic-linker
+1. The linker hook in `hooks/` translates Nix-store RPATH and dynamic-linker
    arguments to the final Ardos runtime paths.
-4. `postInstall` records the current package's own layout metadata.
+1. `postInstall` records the current package's own layout metadata.
 
 This separation keeps build isolation intact: compilers see declared Nix-store
 inputs during the build, while produced binaries reference only Ardos runtime

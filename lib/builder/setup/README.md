@@ -10,11 +10,11 @@ package build it:
 
 1. Runs `early-init.rs` to create a temporary `ARDOS_RUNTIME_MAP` file and export
    the linker-hook path as `ARDOS_LD_HOOK`.
-2. Registers `populate-map.rs` in configure/build hooks so link steps can see
+1. Registers `populate-map.rs` in configure/build hooks so link steps can see
    dependency runtime mappings before compilation starts.
-3. Registers `generate-layout.rs` before fixup to create fallback layout
+1. Registers `generate-layout.rs` before fixup to create fallback layout
    metadata for packages that did not provide custom Ardos metadata.
-4. Registers `translate-shebangs.rs` after fixup to rewrite script interpreters
+1. Registers `translate-shebangs.rs` after fixup to rewrite script interpreters
    from Nix-store paths to their declared Ardos runtime paths.
 
 ## Helper tools

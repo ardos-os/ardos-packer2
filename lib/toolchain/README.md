@@ -30,12 +30,12 @@ The Ardos overlay does only target-toolchain work:
 
 1. Patch autotools `config.sub` files so source packages accept the Ardos target
    triplet.
-2. Patch cross binutils and glibc where Nixpkgs needs target awareness.
-3. Wrap the target `stdenv` so Ardos target packages receive the setup hook from
+1. Patch cross binutils and glibc where Nixpkgs needs target awareness.
+1. Wrap the target `stdenv` so Ardos target packages receive the setup hook from
    `lib/builder/setup`.
-4. Install the stable linker-wrapper stub from `lib/builder/hooks/ld-wrapper.sh`
+1. Install the stable linker-wrapper stub from `lib/builder/hooks/ld-wrapper.sh`
    into cross bintools.
-5. Patch LLVM target-environment detection for Ardos.
+1. Patch LLVM target-environment detection for Ardos.
 
 The stable linker stub is copied into the toolchain, while the mutable linker
 translation implementation remains outside it. This keeps toolchain rebuilds

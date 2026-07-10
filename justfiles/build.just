@@ -6,25 +6,22 @@ build_dir := root / "build"
 
 nix_flags := "--extra-experimental-features 'nix-command flakes'"
 
-# Build the Ardos x86_64 stdenv (cross-compilation toolchain) using nom
-stdenv:
-    #!/usr/bin/env bash
-    outlink='{{build_dir}}/stdenv'
-    mkdir -p "$(dirname "$outlink")"
-    nom build .#packages.x86_64-linux.stdenv-x86_64-linux-ardos {{nix_flags}} --out-link "$outlink"
-
-# Build a specific component of the Ardos x86_64 toolchain (cc, binutils, glibc) using nom
-toolchain component:
+# Build an package exported from the flake outputs by name
+pkg name arch="x86_64" target=arch:
     #!/usr/bin/env bash
     set -euo pipefail
-    outlink='{{build_dir}}/toolchain/{{component}}'
-    mkdir -p "$(dirname "$outlink")"
-    nom build .#packages.x86_64-linux.toolchain-x86_64-linux-ardos.{{component}} {{nix_flags}} --out-link "$outlink"
-
-# Build an Ardos package by name (e.g., hello, hellolibrary) using nom
-pkg name:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    cd '{{root}}'
     outlink='{{build_dir}}/pkg/{{name}}'
     mkdir -p "$(dirname "$outlink")"
-    nom build .#packages.x86_64-linux.{{name}}-x86_64-linux-ardos {{nix_flags}} --out-link "$outlink"
+    nix run nixpkgs#nix-output-monitor -- build .#packages.{{arch}}-linux.{{name}}-{{target}}-linux-ardos {{nix_flags}} --out-link "$outlink"
+
+# Runs a nix check exported from the flake outputs by name
+check name arch="x86_64" target=arch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{root}}'
+    outlink='{{build_dir}}/checks/{{name}}'
+    mkdir -p "$(dirname "$outlink")"
+    nix run nixpkgs#nix-output-monitor -- build .#checks.{{arch}}-linux.{{name}}-{{target}}-linux-ardos {{nix_flags}} --out-link "$outlink"
+
+alias test := check

@@ -1,5 +1,8 @@
-{lib, ardosPackerLib, nixpkgs}:
-let
+{
+  lib,
+  ardosPackerLib,
+  nixpkgs,
+}: let
   mkNixBuildSystem = ardosPlatform: "${ardosPlatform.cpu}-${ardosPlatform.kernel}";
 
   defaultExternalMappings = pkgs: let
@@ -37,30 +40,39 @@ let
   mkPackagesForBuildPlatform = _buildName: buildPlatform: let
     buildSystem = mkNixBuildSystem buildPlatform;
 
-    targetPackagesByTriple = lib.mapAttrs' (_targetName: targetPlatform:
-      lib.nameValuePair targetPlatform.config (mkArdosPacker buildSystem targetPlatform)
-    ) ardosPackerLib.platforms;
+    targetPackagesByTriple =
+      lib.mapAttrs' (
+        _targetName: targetPlatform:
+          lib.nameValuePair targetPlatform.config (mkArdosPacker buildSystem targetPlatform)
+      )
+      ardosPackerLib.platforms;
 
-    targetPackages = lib.concatMapAttrs (targetTriple: ardosPacker: let
-      hellolibrary = ardosPacker.callPackage ./hellolibrary {};
-      hello = ardosPacker.callPackage ./hello {inherit hellolibrary;};
-      sysroot = ardosPacker.sysroot {
-        name = "ardos-sysroot-${targetTriple}";
-        includePackages = [hello];
-      };
-    in {
-      "ardos-sysroot-${targetTriple}" = sysroot;
-      "ardos-rom-${targetTriple}" = ardosPacker.rom {
-        inherit sysroot;
-      };
-      "stdenv-${targetTriple}" = ardosPacker.crossPkgs.stdenv;
-      "hellolibrary-${targetTriple}" = hellolibrary;
-      "hello-${targetTriple}" = hello;
-    }) targetPackagesByTriple;
-  in targetPackages // {
-    default = targetPackages.ardos-rom-x86_64-linux-ardos;
-  };
+    targetPackages =
+      lib.concatMapAttrs (targetTriple: ardosPacker: let
+        hellolibrary = ardosPacker.callPackage ./hellolibrary {};
+        hello = ardosPacker.callPackage ./hello {inherit hellolibrary;};
+        sysroot = ardosPacker.sysroot {
+          name = "ardos-sysroot-${targetTriple}";
+          includePackages = [hello];
+        };
+      in {
+        "ardos-sysroot-${targetTriple}" = sysroot;
+        "ardos-rom-${targetTriple}" = ardosPacker.rom {
+          inherit sysroot;
+        };
+        "stdenv-${targetTriple}" = ardosPacker.crossPkgs.stdenv;
+        "hellolibrary-${targetTriple}" = hellolibrary;
+        "hello-${targetTriple}" = hello;
+      })
+      targetPackagesByTriple;
+  in
+    targetPackages
+    // {
+      default = targetPackages.ardos-rom-x86_64-linux-ardos;
+    };
 in
-  lib.mapAttrs' (buildName: buildPlatform:
-    lib.nameValuePair (mkNixBuildSystem buildPlatform) (mkPackagesForBuildPlatform buildName buildPlatform)
-  ) ardosPackerLib.platforms
+  lib.mapAttrs' (
+    buildName: buildPlatform:
+      lib.nameValuePair (mkNixBuildSystem buildPlatform) (mkPackagesForBuildPlatform buildName buildPlatform)
+  )
+  ardosPackerLib.platforms

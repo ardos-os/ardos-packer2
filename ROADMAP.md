@@ -1,9 +1,9 @@
 # Ardos Packer 2 — Implementation Roadmap
 
-> **Status**: Research & Experimentation Phase Complete  
+> **Status**: Research & Experimentation Phase Complete\
 > **Goal**: A reproducible, Nix-driven ROM generator for Ardos OS that produces a clean, FHS-like filesystem image with no `/nix/store` references at runtime.
 
----
+______________________________________________________________________
 
 ## 🏗️ Architecture Overview
 
@@ -35,11 +35,12 @@
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## 📦 Milestones
 
 ### Milestone 1 — Ardos Stdenv Foundation ✅ (In Progress)
+
 > Cross-compilation base that produces target binaries with correct RPATH from day one.
 
 | Task | Status | Notes |
@@ -52,9 +53,10 @@
 | Wrap `stdenv.mkDerivation` to patch `config.sub` in-place | ✅ Done | For target packages |
 | Refactor `lib/stdenv/default.nix` with clean `let` blocks | ✅ Done | `ardosOverlay`, `wrapStdenvForArdos`, `patchAutotoolsConfig` |
 
----
+______________________________________________________________________
 
 ### Milestone 2 — Runtime Layout & Linker Integration 🔲
+
 > Teach the linker to embed correct Ardos runtime paths, not Nix store paths.
 
 #### 2.1 — `ld-wrapper-hook`
@@ -85,9 +87,10 @@
 | Expose as `passthru.ardos.runtimeTree` | ✅ Done | Used by ROM generator and linker wrapper |
 | Verify no target path hardcoding | ✅ Done | Paths sourced entirely from `runtimeLayoutScript` output |
 
----
+______________________________________________________________________
 
 ### Milestone 3 — ROM Generator 🔲
+
 > Compute the transitive closure of all required packages and assemble a clean squashfs image.
 
 | Task | Status | Notes |
@@ -99,9 +102,10 @@
 | Produce a `squashfs` image from the staged tree | 🔲 | Via `mksquashfs` in a derivation |
 | Expose as `packages.${system}.ardos-rom-${targetTriple}` | 🔲 | Already wired in `flake.nix` |
 
----
+______________________________________________________________________
 
 ### Milestone 4 — Rust Toolchain Integration 🔲
+
 > Pre-compiled Rust standard library for Ardos as a Nix derivation.
 
 | Task | Status | Notes |
@@ -112,9 +116,10 @@
 | Verify `cargo build --target x86_64-linux-ardos.json` works without `-Z build-std` | 🔲 | |
 | Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix` | ✅ Done | Already declared |
 
----
+______________________________________________________________________
 
 ### Milestone 5 — Developer Experience 🔲
+
 > Make it easy to work on individual Ardos packages without rebuilding the world.
 
 | Task | Status | Notes |
@@ -126,9 +131,10 @@
 | Add a proof-of-concept C package (`hello`) | 🔲 | Library + binary using the full pipeline |
 | Add `nix build .#hello` and `nix build .#helloRuntimeTree` targets | 🔲 | Verify Milestone 2 end-to-end |
 
----
+______________________________________________________________________
 
 ### Milestone 6 — Multi-Architecture Support 🔲
+
 > Validate that the same infrastructure works for `aarch64-linux-ardos` and `riscv64-linux-ardos` without code duplication.
 
 | Task | Status | Notes |
@@ -138,18 +144,18 @@
 | Verify `runtimeLayoutScript` is arch-agnostic | 🔲 | Scripts should not contain architecture-specific paths |
 | Cross-compile `ardos-rom` for each supported architecture | 🔲 | |
 
----
+______________________________________________________________________
 
 ## 🔑 Key Design Principles (Non-Negotiable)
 
 1. **No `/nix/store` at runtime**: All RPATH entries embedded in target binaries must point to Ardos filesystem paths only. The `ld-wrapper-hook` enforces this at link time.
-2. **No `patchelf`**: Runtime paths must be correct from the first link. Post-build patching is forbidden.
-3. **No global path assumptions**: The linker wrapper has zero hardcoded paths. All path knowledge lives in the packages themselves via `nix-support/ardos-layout`.
-4. **Single source of truth**: Each package declares its own runtime layout. Consumers never assume paths like `/ardos/lib`.
-5. **Transitive closure, not manual lists**: The ROM generator automatically includes all required files. Developers never manually list indirect dependencies.
-6. **Incremental rebuilds**: Changing one package only rebuilds that package and its dependents. The rest is served from cache.
+1. **No `patchelf`**: Runtime paths must be correct from the first link. Post-build patching is forbidden.
+1. **No global path assumptions**: The linker wrapper has zero hardcoded paths. All path knowledge lives in the packages themselves via `nix-support/ardos-layout`.
+1. **Single source of truth**: Each package declares its own runtime layout. Consumers never assume paths like `/ardos/lib`.
+1. **Transitive closure, not manual lists**: The ROM generator automatically includes all required files. Developers never manually list indirect dependencies.
+1. **Incremental rebuilds**: Changing one package only rebuilds that package and its dependents. The rest is served from cache.
 
----
+______________________________________________________________________
 
 ## 📁 Final File Layout (Target)
 

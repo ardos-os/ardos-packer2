@@ -3,17 +3,17 @@ eval "$(@ardosEarlyOut@)"
 
 # Define wrapper functions for the other three binaries
 ardosGenerateDefaultLayout() {
-  "@ardosGenerateDefaultLayoutOut@" generate-layout
+	"@ardosGenerateDefaultLayoutOut@" generate-layout
 }
 ardosPopulateMap() {
-  if [[ -n "${ARDOS_RUNTIME_MAP_POPULATED:-}" ]]; then
-    return 0
-  fi
-  export ARDOS_RUNTIME_MAP_POPULATED=1
-  "@ardosPopulateMapOut@" populate-map
+	if [[ -n "${ARDOS_RUNTIME_MAP_POPULATED:-}" ]]; then
+		return 0
+	fi
+	export ARDOS_RUNTIME_MAP_POPULATED=1
+	"@ardosPopulateMapOut@" populate-map
 }
 ardosTranslateShebangs() {
-  "@ardosTranslateShebangsOut@" translate-shebangs
+	"@ardosTranslateShebangsOut@" translate-shebangs
 }
 
 # Hook them into the appropriate stages

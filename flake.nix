@@ -5,7 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = {self, nixpkgs}: let
+  outputs = {
+    self,
+    nixpkgs,
+  }: let
     lib = nixpkgs.lib;
     ardosPackerLib = import ./lib {inherit nixpkgs;};
     packages = import ./packages {inherit lib ardosPackerLib nixpkgs;};
