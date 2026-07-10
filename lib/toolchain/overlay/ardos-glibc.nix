@@ -70,12 +70,15 @@ if !isTarget then {} else {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlag;
     makeFlags = keptMakeFlags;
-    # Nixpkgs glibc already sets install_root=$(out) in its own installFlags.
-    # Combined with --prefix=/ardos this produces the correct install path
-    # $out/ardos/lib. We must NOT add DESTDIR=$out here because
-    # glibc-nolibgcc (glibc.overrideAttrs in nixpkgs) inherits our flags,
-    # and DESTDIR prepended to the already-absolute libdir/bindir paths
-    # creates double-nested store paths that break the install phase.
+    # When --prefix=/ardos is set, glibc's shared library install uses
+    # inst_slibdir = $(install_root)$(slibdir) where slibdir = $(prefix)/lib
+    # = /ardos/lib. Without install_root, this resolves to /ardos/lib which
+    # doesn't exist in the Nix sandbox. Setting install_root=$out redirects
+    # to $out/ardos/lib. Unlike DESTDIR, install_root only affects glibc's
+    # inst_* prefixed paths — the direct $(libdir) from nixpkgs ($out/lib)
+    # is untouched, so static library installs and glibc-nolibgcc work fine.
+    installFlags = (old.installFlags or [])
+      ++ lib.optional (runtimePrefix != null) "install_root=$out";
     postPatch = cleanedPostPatch;
   });
 }
