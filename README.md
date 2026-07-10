@@ -46,6 +46,8 @@ When the ROM generator constructs the final squashfs, it follows these symlinks 
 
 ------
 
+#### Adding external non-ardos derivations
+
 
 Some target packages come directly from nixpkgs and cannot reasonably be
 changed just to add Ardos metadata.
