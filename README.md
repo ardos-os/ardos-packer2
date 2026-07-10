@@ -44,8 +44,15 @@ During the build, this mapping is stored as metadata in the package's output dir
 
 When the ROM generator constructs the final squashfs, it follows these symlinks to assemble the files at their final target paths, checking for collisions between packages.
 
+------
+
+
 Some target packages come directly from nixpkgs and cannot reasonably be
-changed just to add Ardos metadata. `ardosPackerLib.init` therefore accepts an
+changed just to add Ardos metadata.
+
+![unknown mapping diagram](./docs/unknown-mapping.svg)
+
+`ardosPackerLib.init` therefore accepts an
 `externalMappings` option: a list (or a function from `crossPkgs` to a list) of
 `{ drv, runtimeLayoutScript }` entries. Each script has the same `$out` and
 `$stage` interface as `mkArdosDerivation`, but it is evaluated outside the
