@@ -119,12 +119,12 @@ and build packages targetting Ardos OS, but that's not just viable right now dur
 This is controversial so I'm already leaving here the disclaimer.
 
 We do use a bit of AI, especially because nixpkgs is really complex and we do often run into issues because of something that happens behind the scenes we don't usually notice. Don't see the use of AI here as slop, it is being used to deal with puzzling issues
-we just want to quickly get over with and deal with technical debt.
+we just want to quickly get over with and deal with technical debt. All the code is still thourougly tested and audited for code quality both through unit tests, integration tests and manual tests.
 
 The repository features a local LLM setup you can call with
 
 ```
-nix run .#start-ai
+just start-ai
 ```
 
 If you have a beefy machine like a gaming PC, there's no need to beg billy G for tokens: you can download some local models and use
