@@ -26,4 +26,3 @@ start-ai:
 
 alias check := build::check
 alias test := build::check
-alias format := fmt
