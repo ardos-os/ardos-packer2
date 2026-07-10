@@ -75,7 +75,7 @@ in rec {
             buildPkgs.squashfsTools
           ];
         } ''
-          mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
+          mksquashfs "${sysroot}" "$out" -noappend
         '';
     };
   in
