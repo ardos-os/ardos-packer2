@@ -9,7 +9,7 @@ isolated package builds, and better support for cross-compiling.
 
 It might seem impossible since Nix is highly tied to the Nix store and NixOS runtime models. However, Nix is the perfect tool for building reproducible artifacts in a declarative manner. It gives you a full-blown functional programming language made specifically for package management, remote caching, reproducible builds, build sandboxing (cutting off internet and other impurities), explicit dependencies, and isolated builds. All one needs to build an Ardos OS image is Nix.
 
-We can use the host's `nixpkgs` to build a cross-compiling toolchain targeting Ardos OS with all the libraries in the right places as it is implemented in \[lib/stdenv/default.nix\](file:///lib/stdenv/default.nix).
+We can use the host's `nixpkgs` to build a cross-compiling toolchain targeting Ardos OS with all the libraries in the right places as it is implemented in [lib/toolchain/default.nix](lib/toolchain/default.nix).
 
 The Ardos OS `stdenv` is built on top of the Nixpkgs `stdenv` frameworks; however, the toolchain is patched and overlayed to ensure everything is building correct Ardos OS binaries and libraries. In addition, \[nixpkgs itself is patched\](file:///lib/stdenv/patches/nixpkgs.patch) to make the generic builder recognize Ardos OS as a valid target.
 
