@@ -63,29 +63,26 @@ if !isTarget then {} else {
         lib.concatStringsSep "\n" filtered;
 
     # --- configureFlags ---
-    prefixFlag = lib.optional (runtimePrefix != null)
-      "--prefix=${runtimePrefix}";
+    # --libdir must come AFTER --prefix so it overrides the --libdir that
+    # multiple-outputs.sh prepends (absolute store path).  Autoconf uses
+    # the last --libdir, so our relative value wins and gets baked into
+    # the Makefile as $(libdir) = ${runtimePrefix}/lib.
+    prefixFlags = lib.optionals (runtimePrefix != null) [
+      "--prefix=${runtimePrefix}"
+      "--libdir=${runtimePrefix}/lib"
+    ];
 
   in {
     patches = finalPatches;
-    configureFlags = (old.configureFlags or []) ++ prefixFlag;
+    configureFlags = (old.configureFlags or []) ++ prefixFlags;
     makeFlags = keptMakeFlags;
-    # When --prefix=/ardos is set, glibc's shared library install uses
-    # inst_slibdir = $(install_root)$(slibdir) where slibdir = $(prefix)/lib
-    # = /ardos/lib. Without install_root, this resolves to /ardos/lib which
-    # doesn't exist in the Nix sandbox. Setting install_root=$out redirects
-    # to $out/ardos/lib. Unlike DESTDIR, install_root only affects glibc's
-    # inst_* prefixed paths — the direct $(libdir) from nixpkgs ($out/lib)
-    # is untouched, so static library installs and glibc-nolibgcc work fine.
+    # install_root redirects glibc's inst_* paths (inst_libdir =
+    # $(install_root)$(libdir)) into the Nix sandbox.  Because configure
+    # already set libdir to a relative path, inst_libdir resolves to
+    # $out/ardos/lib — no double-nesting.
     installFlags = (old.installFlags or [])
       ++ lib.optional (runtimePrefix != null) "install_root=$out";
     postPatch = cleanedPostPatch;
   });
 
-  # glibc-nolibgcc is derived from glibc in nixpkgs' fixed point, so it
-  # inherits our --prefix and install_root overrides.  The combination of
-  # install_root=$out with nixpkgs' absolute libdir paths creates double-
-  # nested store paths (inst_libdir = $out + /nix/store/xxx/lib).  Pin
-  # glibc-nolibgcc to the pre-overlay version to avoid this.
-  glibc-nolibgcc = prev.glibc-nolibgcc;
 }

@@ -142,6 +142,20 @@
       in (overlay final prev).glibc.overrideAttrs (old: {
         preConfigure = patchAutotoolsConfig (old.preConfigure or null);
       });
+
+      # glibc-nolibgcc is the bootstrap variant (libgcc=null) used to
+      # build libgcc.  Because `override` preserves `overrideAttrs`,
+      # glibc.override { libgcc = null; } inherits our --prefix/libdir
+      # and install_root overrides, which break its install (double-nested
+      # store paths) and would also break libgcc (wrong library paths).
+      # Pin it to the pre-overlay version so the bootstrap chain stays clean.
+      glibc-nolibgcc = prev.glibc.override { libgcc = null; };
+
+      # Redirect nixpkgs' libgcc (defined inline with glibc.override) to
+      # use the clean glibc-nolibgcc above instead of inheriting ours.
+      libgcc = prev.libgcc.override {
+        glibc = final.glibc-nolibgcc;
+      };
     }
     else {};
 in rec {
