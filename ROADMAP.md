@@ -39,7 +39,7 @@ ______________________________________________________________________
 
 ## 📦 Milestones
 
-### Milestone 1 — Ardos Stdenv Foundation ✅ (In Progress)
+### Milestone 1 — Ardos Stdenv Foundation ✅
 
 > Cross-compilation base that produces target binaries with correct RPATH from day one.
 
@@ -55,7 +55,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Milestone 2 — Runtime Layout & Linker Integration 🔲
+### Milestone 2 — Runtime Layout & Linker Integration ✅
 
 > Teach the linker to embed correct Ardos runtime paths, not Nix store paths.
 
@@ -89,18 +89,18 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Milestone 3 — ROM Generator 🔲
+### Milestone 3 — ROM Generator ✅
 
 > Compute the transitive closure of all required packages and assemble a clean squashfs image.
 
 | Task | Status | Notes |
 |---|---|---|
-| Refactor `lib/ardosRom.nix` | 🔲 | Currently a stub |
-| Use `exportReferencesGraph` to compute transitive closure | 🔲 | Built-in Nix feature to get all store paths a derivation depends on |
-| Walk the closure and collect all `nix-support/ardos-layout` files | 🔲 | Skip packages without a layout (build-only deps) |
-| Stage real files into target directory structure | 🔲 | `cp --remove-destination $(readlink -f $symlink) $dest` |
-| Produce a `squashfs` image from the staged tree | 🔲 | Via `mksquashfs` in a derivation |
-| Expose as `packages.${system}.ardos-rom-${targetTriple}` | 🔲 | Already wired in `flake.nix` |
+| Refactor `lib/ardosRom.nix` | ✅ Done | Currently a stub |
+| Use `closureInfo` to compute transitive closure | ✅ Done | "Produces metadata about the closure of the given root paths." |
+| Walk the closure and collect all `nix-support/ardos-layout` files | ✅ Done | Skip packages without a layout (build-only deps) |
+| Stage real files into target directory structure | ✅ Done | `cp -a --no-preserve=ownership $(readlink -f $symlink) $dest` |
+| Produce a `squashfs` image from the staged tree | ✅ Done | Via `mksquashfs` in a derivation |
+| Expose as `packages.${system}.ardos-rom-${targetTriple}` | ✅ Done | Already wired in `flake.nix` |
 
 ______________________________________________________________________
 
@@ -110,39 +110,25 @@ ______________________________________________________________________
 
 | Task | Status | Notes |
 |---|---|---|
-| Compile `rust-std-ardos` derivation from `rustPlatform.rust.rustcSrc` | 🔲 | See `rust_compiler_setup_plan.md` |
-| Create unified sysroot via `symlinkJoin` | 🔲 | Host `rustc` + `rustStdArdos` |
-| Wrap `rustc` with `--sysroot` flag via `makeWrapper` | 🔲 | Overlay `rustc` in `ardosOverlay` |
+| Compile `rust-std-ardos` derivation from `rustPlatform.rust.rustcSrc` | 🔲 |  |
+| Caching dependency crate builds across packages/components written in rust | 🔲 |  |
+| Building rust projects with `rustPlatform` from nixpkgs should just work | 🔲 |  |
+| Similarly to the C compiler, rustc also needs to be a cross compiler to ardos and should compile effortlessly with the same experience as compiling to the host machine itself, no noisy derivations | 🔲 | |
 | Verify `cargo build --target x86_64-linux-ardos.json` works without `-Z build-std` | 🔲 | |
 | Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix` | ✅ Done | Already declared |
 
 ______________________________________________________________________
 
-### Milestone 5 — Developer Experience 🔲
-
-> Make it easy to work on individual Ardos packages without rebuilding the world.
-
-| Task | Status | Notes |
-|---|---|---|
-| `devShells.${system}.default` in `flake.nix` | 🔲 | Cross-compiler, cargo, make in PATH |
-| `nix develop` loads cross-compiling environment | 🔲 | `CC`, `CXX`, `LD` pointing to Ardos cross-compiler |
-| `ARDOS_RUNTIME_MAP` auto-generated in dev shell | 🔲 | From declared packages |
-| Document `mkArdosDerivation` API | 🔲 | How to declare `runtimeLayoutScript` |
-| Add a proof-of-concept C package (`hello`) | 🔲 | Library + binary using the full pipeline |
-| Add `nix build .#hello` and `nix build .#helloRuntimeTree` targets | 🔲 | Verify Milestone 2 end-to-end |
-
-______________________________________________________________________
-
-### Milestone 6 — Multi-Architecture Support 🔲
+### Milestone 5 — Multi-Architecture Support ✅
 
 > Validate that the same infrastructure works for `aarch64-linux-ardos` and `riscv64-linux-ardos` without code duplication.
 
 | Task | Status | Notes |
 |---|---|---|
-| Verify `aarch64-linux-ardos` cross-compilation builds | 🔲 | Via `packages.x86_64-linux.cross-aarch64-linux-ardos` |
-| Verify `riscv64-linux-ardos` cross-compilation builds | 🔲 | Via `packages.x86_64-linux.cross-riscv64-linux-ardos` |
-| Verify `runtimeLayoutScript` is arch-agnostic | 🔲 | Scripts should not contain architecture-specific paths |
-| Cross-compile `ardos-rom` for each supported architecture | 🔲 | |
+| Verify `aarch64-linux-ardos` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-aarch64-linux-ardos` |
+| Verify `riscv64-linux-ardos` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-riscv64-linux-ardos` |
+| Verify `runtimeLayoutScript` is arch-agnostic | ✅ Done | Scripts should not contain architecture-specific paths |
+| Cross-compile `ardos-rom` for each supported architecture | ✅ Done | |
 
 ______________________________________________________________________
 
@@ -153,43 +139,4 @@ ______________________________________________________________________
 1. **No global path assumptions**: The linker wrapper has zero hardcoded paths. All path knowledge lives in the packages themselves via `nix-support/ardos-layout`.
 1. **Single source of truth**: Each package declares its own runtime layout. Consumers never assume paths like `/ardos/lib`.
 1. **Transitive closure, not manual lists**: The ROM generator automatically includes all required files. Developers never manually list indirect dependencies.
-1. **Incremental rebuilds**: Changing one package only rebuilds that package and its dependents. The rest is served from cache.
-
-______________________________________________________________________
-
-## 📁 Final File Layout (Target)
-
-```
-ardos-packer2/
-├── flake.nix
-├── lib/
-│   ├── default.nix
-│   ├── platforms.nix
-│   ├── supportedCpus.nix
-│   ├── ardosRom.nix            ← Milestone 3
-│   ├── mkArdosDerivation.nix   ← Milestone 2.2
-│   ├── mkRuntimeTree.nix       ← Milestone 2.3
-│   ├── rustTargets/
-│   │   ├── x86_64-linux-ardos.json
-│   │   ├── aarch64-linux-ardos.json
-│   │   └── riscv64gc-linux-ardos.json
-│   └── stdenv/
-│       ├── default.nix
-│       ├── hooks/
-│       │   └── ld-wrapper-hook     ← Milestone 2.1
-│       └── setup-hooks/
-│           └── ardos-map.sh        ← Milestone 2.1
-│       └── patches/
-│           ├── nixpkgs.patch
-│           ├── binutils-add-ardos.patch
-│           ├── glibc-add-ardos.patch
-│           ├── llvm-add-ardos-environment.patch
-│           └── gcc-add-ardos.patch
-└── experiments/                ← To be cleaned up or archived
-    ├── conclusions.md
-    ├── ld-wrapper-hook
-    ├── test_mapping.nix
-    ├── test_wrapper_hook.sh
-    ├── test_wrapper_run.sh
-    └── test_full_compilation.nix
-```
+1. **Incremental rebuilds**: Changing one package only rebuilds that package down, never up. The rest is served from cache. if you edit a music player program and suddently it starts rebuilding from toolchain stage 1, you probably did something very wrong.
