@@ -21,6 +21,7 @@
       inherit crossPkgs rustScript externalMappings;
     })
     mkArdosDerivation
+    mkArdosRustPackage
     mkRuntimeTree
     ;
 }

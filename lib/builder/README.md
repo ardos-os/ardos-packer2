@@ -10,6 +10,8 @@ cross toolchain exists.
 - `rustScript`: compiles small Rust helper programs into host executables.
 - `mkArdosDerivation`: wraps `crossPkgs.stdenv.mkDerivation` for packages that
   must install into the Ardos runtime layout.
+- `mkArdosRustPackage`: wraps `crossPkgs.rustPlatform.buildRustPackage` for
+  Cargo packages and workspaces while preserving nixpkgs Rust build behavior.
 - `mkRuntimeTree`: materialises a package's declared runtime layout as a symlink
   tree, useful for inspection and later image assembly.
 
@@ -47,3 +49,40 @@ provided by dependency layout metadata.
 This separation keeps build isolation intact: compilers see declared Nix-store
 inputs during the build, while produced binaries reference only Ardos runtime
 paths.
+
+## Rust workspaces
+
+`mkArdosRustPackage` is the Rust equivalent of `mkArdosDerivation`. It delegates
+compilation to `crossPkgs.rustPlatform.buildRustPackage` unchanged, so large
+Cargo workspaces keep nixpkgs' normal crate-vendor, dependency-cache, feature,
+and multi-binary behavior. The only Ardos-specific layer is the runtime layout
+metadata recorded after install.
+
+For Rust packages, `runtimeLayout` can be a declarative attrset instead of a
+script:
+
+```nix
+mkArdosRustPackage {
+  pname = "workspace-apps";
+  version = "1.0.0";
+  src = ./.;
+  cargoHash = "sha256-...";
+
+  runtimeLayout = {
+    binaries = {
+      server = "/apps/server/bin/server";
+      worker = "/apps/worker/bin/worker";
+    };
+    libraries = {
+      "libworkspace_plugin.so" = "/apps/server/lib/libworkspace_plugin.so";
+    };
+  };
+}
+```
+
+`binaries.<name>` points at `$out/bin/<name>`, `libraries.<name>` and
+`sharedLibraries.<name>` point at `$out/lib/<name>`, and `files.<relative-path>`
+points at any other `$out`-relative file. A flat attrset is also accepted for
+advanced cases, for example `{ "bin/server" = "/apps/server/bin/server"; }`.
+All of these forms lower to the same generated `runtimeLayoutScript` used by
+non-Rust packages.

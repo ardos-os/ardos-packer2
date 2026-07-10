@@ -111,8 +111,8 @@ ______________________________________________________________________
 | Task | Status | Notes |
 |---|---|---|
 | Compile `rust-std-ardos` derivation from `rustPlatform.rust.rustcSrc` | 🔲 |  |
-| Caching dependency crate builds across packages/components written in rust | 🔲 |  |
-| Building rust projects with `rustPlatform` from nixpkgs should just work | 🔲 |  |
+| Caching dependency crate builds across packages/components written in rust | ✅ Done | Reuses nixpkgs `rustPlatform`/Cargo vendor and build-dependency caching instead of custom Rust build logic |
+| Building rust projects with `rustPlatform` from nixpkgs should just work | ✅ Done | `mkArdosRustPackage` delegates to nixpkgs `rustPlatform.buildRustPackage` and only adds Ardos layout metadata |
 | Similarly to the C compiler, rustc also needs to be a cross compiler to ardos and should compile effortlessly with the same experience as compiling to the host machine itself, no noisy derivations | 🔲 | |
 | Verify `cargo build --target x86_64-linux-ardos.json` works without `-Z build-std` | 🔲 | |
 | Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix` | ✅ Done | Already declared |

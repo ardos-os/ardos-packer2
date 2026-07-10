@@ -49,16 +49,17 @@ in rec {
   in let
     instance = rec {
       inherit buildPkgs crossPkgs;
-      inherit (builder) mkArdosDerivation mkRuntimeTree;
+      inherit (builder) mkArdosDerivation mkArdosRustPackage mkRuntimeTree;
 
       stdenv = crossPkgs.stdenv;
+      rustPlatform = crossPkgs.rustPlatform;
       cc = toolchain.toolchain.cc;
 
       callPackage = path: overrides: let
         scope =
           crossPkgs
           // {
-            inherit mkArdosDerivation mkRuntimeTree;
+            inherit mkArdosDerivation mkArdosRustPackage mkRuntimeTree;
             ap2 = instance;
           };
       in

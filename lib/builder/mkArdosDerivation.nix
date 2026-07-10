@@ -24,14 +24,58 @@
   externalMappings ? [],
 }: let
   lib = nixpkgs.lib;
-  stdenv = crossPkgs.stdenv;
+  linkScript = source: target: let
+    sourceArg = lib.escapeShellArg source;
+    targetArg = lib.escapeShellArg target;
+  in ''
+    src_rel=${sourceArg}
+    target_abs=${targetArg}
+    mkdir -p "$stage$(dirname "$target_abs")"
+    ln -sfn "$out/$src_rel" "$stage$target_abs"
+  '';
 
   layoutListToScript = entries:
-    lib.concatMapStrings (entry: ''
-      mkdir -p "\$stage\$(dirname \"${entry.target}\")"
-      ln -sfn "\$out/${entry.source}" "\$stage${entry.target}"
-    '')
-    entries;
+    lib.concatMapStrings (entry: linkScript entry.source entry.target) entries;
+
+  # Rust workspaces commonly produce several binaries and, for cdylib/dylib
+  # crates, shared libraries.  Keep the user-facing API declarative while still
+  # lowering to the same runtimeLayoutScript single source of truth used by C
+  # packages. Supported shapes:
+  #
+  #   runtimeLayout = {
+  #     binaries.my-tool = "/bin/my-tool";      # $out/bin/my-tool
+  #     libraries."libfoo.so" = "/lib/libfoo.so"; # $out/lib/libfoo.so
+  #     sharedLibraries."libbar.so" = "/lib/libbar.so"; # alias for libraries
+  #     files."share/x" = "/share/x";          # arbitrary $out-relative file
+  #   };
+  #
+  # For small packages a flat attrset is also accepted, mapping $out-relative
+  # paths directly to final Ardos paths:
+  #
+  #   runtimeLayout = { "bin/my-tool" = "/bin/my-tool"; };
+  layoutAttrSetToScript = layout: let
+    hasStructuredKeys = layout ? binaries || layout ? libraries || layout ? sharedLibraries || layout ? files;
+    binaries = layout.binaries or {};
+    libraries = (layout.libraries or {}) // (layout.sharedLibraries or {});
+    files = layout.files or {};
+    flat =
+      if hasStructuredKeys
+      then {}
+      else layout;
+    mkLinks = prefix: mappings:
+      lib.concatStringsSep "" (
+        lib.mapAttrsToList (name: target: linkScript "${prefix}${name}" target) mappings
+      );
+  in
+    mkLinks "bin/" binaries
+    + mkLinks "lib/" libraries
+    + mkLinks "" files
+    + mkLinks "" flat;
+
+  runtimeLayoutToScript = layout:
+    if builtins.isAttrs layout
+    then layoutAttrSetToScript layout
+    else layoutListToScript layout;
 
   mappingScriptToLayout = mapping: ''
     mappings_out="$out"
@@ -113,8 +157,7 @@
 in rec {
   inherit mkRuntimeTree;
 
-  # The main package builder
-  mkArdosDerivation = {
+  mkArdosPackageWith = buildPackage: {
     pname,
     version,
     # New: developer-authored bash snippet. Receives $out (the package's nix-support
@@ -133,10 +176,10 @@ in rec {
     resolvedLayoutScript =
       if runtimeLayoutScript != null
       then runtimeLayoutScript
-      else layoutListToScript runtimeLayout;
+      else runtimeLayoutToScript runtimeLayout;
 
-    # Build the derivation using our target stdenv
-    drv = crossPkgs.stdenv.mkDerivation (cleanArgs
+    # Build the derivation using the selected target package builder.
+    drv = buildPackage (cleanArgs
       // {
         _ardos_translate = let
           ardosEarlyInit = rustScript "ardos_ld_translate" ./hooks/ardos_ld_translate.rs;
@@ -229,17 +272,24 @@ in rec {
       });
   in
     drv.overrideAttrs (old: {
-      passthru =
-        old.passthru or {
-          ardos = {
-            # Always expose the resolved script — even when the caller used the
-            # legacy list form — so introspection sees a single canonical shape.
-            runtimeLayoutScript = resolvedLayoutScript;
-            runtimeTree = mkRuntimeTree {
-              inherit pname version;
-              drv = drv;
-            };
+      passthru = (old.passthru or {}) // {
+        ardos = (old.passthru.ardos or {}) // {
+          # Always expose the resolved script — even when the caller used the
+          # legacy list form — so introspection sees a single canonical shape.
+          runtimeLayoutScript = resolvedLayoutScript;
+          runtimeTree = mkRuntimeTree {
+            inherit pname version;
+            drv = drv;
           };
         };
+      };
     });
+
+  # The main C/C++/generic package builder.
+  mkArdosDerivation = mkArdosPackageWith crossPkgs.stdenv.mkDerivation;
+
+  # Rust package builder: a thin Ardos layout wrapper around nixpkgs' vanilla
+  # rustPlatform.buildRustPackage, so crate dependency caching and workspace
+  # handling stay exactly as implemented upstream.
+  mkArdosRustPackage = mkArdosPackageWith crossPkgs.rustPlatform.buildRustPackage;
 }
