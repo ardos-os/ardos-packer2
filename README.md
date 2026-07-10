@@ -11,7 +11,7 @@ It might seem impossible since Nix is highly tied to the Nix store and NixOS run
 
 We can use the host's `nixpkgs` to build a cross-compiling toolchain targeting Ardos OS with all the libraries in the right places as it is implemented in [lib/toolchain/default.nix](lib/toolchain/default.nix).
 
-The Ardos OS `stdenv` is built on top of the Nixpkgs `stdenv` frameworks; however, the toolchain is patched and overlayed to ensure everything is building correct Ardos OS binaries and libraries. In addition, \[nixpkgs itself is patched\](file:///lib/stdenv/patches/nixpkgs.patch) to make the generic builder recognize Ardos OS as a valid target.
+The Ardos OS `stdenv` is built on top of the Nixpkgs `stdenv` frameworks; however, the toolchain is patched and overlayed to ensure everything is building correct Ardos OS binaries and libraries. In addition, [nixpkgs itself is patched](lib/host/patches/nixpkgs.patch) to make the generic builder recognize Ardos OS as a valid target.
 
 This answers the building story, but how do we go from `/nix/store/gibberish` to clean Ardos OS paths inside the squashfs?
 
