@@ -19,10 +19,10 @@ pkg name arch="x86_64" target=arch:
     else
         nixCommand="nix run nixpkgs#nix-output-monitor --"
     fi
-    $nixCommand build .#packages.{{arch}}-linux.{{name}}-{{target}}-linux-ardos {{nix_flags}} --out-link "$outlink"
+    $nixCommand build .#testPackages.{{arch}}-linux.{{target}}-linux-ardos.{{name}} {{nix_flags}} --out-link "$outlink"
 
 # Runs a nix check exported from the flake outputs by name
-check name arch="x86_64" target=arch:
+check type name arch="x86_64" target=arch:
     #!/usr/bin/env bash
     set -euo pipefail
     cd '{{root}}'
@@ -34,6 +34,6 @@ check name arch="x86_64" target=arch:
     else
         nixCommand="nix run nixpkgs#nix-output-monitor --"
     fi
-    $nixCommand build .#checks.{{arch}}-linux.{{name}}-{{target}}-linux-ardos {{nix_flags}} --out-link "$outlink"
+    $nixCommand build .#checks.{{arch}}-linux.{{target}}-linux-ardos-{{type}}-{{name}} {{nix_flags}} --out-link "$outlink"
 
 alias test := check

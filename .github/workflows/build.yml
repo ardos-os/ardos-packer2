@@ -61,8 +61,8 @@ jobs:
       fail-fast: false
       matrix:
         test_name:
-          - hello-binary
-          - hello-chroot
+          - [ unit hello-binary ]
+          - [ integration hello ]
         target_triple:
           - x86_64
           - aarch64
@@ -89,4 +89,4 @@ jobs:
 
       - name: Run ${{ matrix.test_name }} test
         run: |
-          nix develop --command just test ${{ matrix.test_name }}
+          nix develop --command just test ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}

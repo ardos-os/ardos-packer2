@@ -77,6 +77,7 @@ in rec {
         } ''
           mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
         '';
+      setExternalMappings = mappings: init (args // {externalMappings = mappings;});
     };
   in
     instance;

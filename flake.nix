@@ -1,5 +1,5 @@
 {
-  description = "Ardos Packer 2";
+  description = "Declarative and deterministic build system for Ardos OS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,13 +10,13 @@
     nixpkgs,
   }: let
     lib = nixpkgs.lib;
-    ardosPackerLib = import ./lib {inherit nixpkgs;};
-    packages = import ./packages {inherit lib ardosPackerLib nixpkgs;};
+    ap2 = import ./lib {inherit nixpkgs;};
+    packages = import ./packages {inherit lib ap2 nixpkgs;};
   in {
-    lib = ardosPackerLib;
-    inherit packages;
+    lib = ap2;
+    testPackages = packages;
 
-    checks = import ./tests {inherit lib ardosPackerLib nixpkgs packages;};
-    devShells = import ./devShells {inherit lib ardosPackerLib nixpkgs;};
+    checks = import ./tests {inherit lib ap2 nixpkgs packages;};
+    devShells = import ./devShells {inherit lib ap2 nixpkgs;};
   };
 }

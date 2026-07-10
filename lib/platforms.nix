@@ -7,14 +7,16 @@
     enableDevShell ? true,
   }: {
     name = cpu;
-    value = {
+    value = rec {
       inherit cpu llvmTarget rust enableDevShell;
       kernel = "linux";
       abi = "ardos";
       isLinux = true;
       libc = "glibc";
       isArdos = true;
-      config = "${cpu}-linux-ardos";
+      ardosTriple = "${cpu}-${kernel}-${abi}";
+      config = ardosTriple;
+      linuxTriple = "${cpu}-${kernel}";
     };
   };
 in

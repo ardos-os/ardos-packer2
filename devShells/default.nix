@@ -1,6 +1,6 @@
 {
   lib,
-  ardosPackerLib,
+  ap2,
   nixpkgs,
 }: let
   mkNixBuildSystem = ardosPlatform: "${ardosPlatform.cpu}-${ardosPlatform.kernel}";
@@ -9,8 +9,8 @@ in
     _buildName: buildPlatform: let
       system = mkNixBuildSystem buildPlatform;
       pkgs = import nixpkgs {inherit system;};
-      ardosPacker = ardosPackerLib.init {
-        targetPlatform = ardosPackerLib.platforms.x86_64;
+      ardosPacker = ap2.init {
+        targetPlatform = ap2.platforms.x86_64;
         buildSystem = system;
         inherit nixpkgs;
       };
@@ -35,4 +35,4 @@ in
         };
       })
   )
-  ardosPackerLib.platforms
+  ap2.platforms
