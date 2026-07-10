@@ -279,7 +279,11 @@ mkIntegrationTest =
               buildSystem = buildPlatform.linuxTriple;
               toolchainConfig = spec.toolchainConfig or {};
               glibcPlugins = spec.glibcPlugins or [];
-              externalMappings = spec.externalMappings or (import ../tests/fixtures/glibcExternalMappings.nix);
+              externalMappings = spec.externalMappings or (
+                import ../tests/fixtures/glibcExternalMappings.nix {
+                  runtimePrefix = ((spec.toolchainConfig or {}).glibc or {}).runtimePrefix or null;
+                }
+              );
             };
 
             sysroot = instance.sysroot {

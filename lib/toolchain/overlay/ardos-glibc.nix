@@ -70,6 +70,11 @@ if !isTarget then {} else {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlag;
     makeFlags = keptMakeFlags;
+    # When runtimePrefix is set, --prefix=/ardos makes make install try to
+    # write to /ardos/lib which doesn't exist in the sandbox. DESTDIR=$out
+    # redirects installs to $out/${runtimePrefix}/lib instead.
+    installFlags = (old.installFlags or [])
+      ++ lib.optional (runtimePrefix != null) "DESTDIR=$out";
     postPatch = cleanedPostPatch;
   });
 }
