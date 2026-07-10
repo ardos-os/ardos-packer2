@@ -31,6 +31,7 @@ Nix store paths are treated strictly as a build-time implementation detail. Runt
 Each package defines a `runtimeLayout` list mapping Nix store outputs to target absolute paths inside Ardos:
 
 ```nix
+{ mkArdosDerivation }:
 mkArdosDerivation {
   pname = "hellolibrary";
   version = "0.1.0";
@@ -54,7 +55,7 @@ changed just to add Ardos metadata.
 
 ![unknown mapping diagram](./docs/unknown-mapping.svg)
 
-`ardosPackerLib.init` therefore accepts an
+`ap2.init` therefore accepts an
 `externalMappings` option: a list (or a function from `crossPkgs` to a list) of
 `{ drv, runtimeLayoutScript }` entries. Each script has the same `$out` and
 `$stage` interface as `mkArdosDerivation`, but it is evaluated outside the
@@ -64,7 +65,7 @@ so generic mappings for packages such as libc or compiler runtime libraries do
 not leak into unrelated outputs.
 
 ```nix
-ardosPackerLib.init {
+ap2.init {
   inherit targetPlatform buildSystem;
   externalMappings = pkgs: [
     {
