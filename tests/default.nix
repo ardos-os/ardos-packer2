@@ -278,19 +278,15 @@ mkIntegrationTest =
               inherit targetPlatform;
               buildSystem = buildPlatform.linuxTriple;
               toolchainConfig = spec.toolchainConfig or {};
-              glibcPlugins =
-                let gp = spec.glibcPlugins or [];
-                in if builtins.isFunction gp then gp ctx.ap2Instance.crossPkgs else gp;
-              externalMappings =
-                let em = spec.externalMappings or (import ../tests/fixtures/glibcExternalMappings.nix);
-                in if builtins.isFunction em then em ctx.ap2Instance.crossPkgs else em;
+              glibcPlugins = spec.glibcPlugins or [];
+              externalMappings = spec.externalMappings or (import ../tests/fixtures/glibcExternalMappings.nix);
             };
 
             sysroot = instance.sysroot {
               name = "e2e-${spec.name}-${targetTriple}";
               includePackages =
                 let pkgs = spec.packages or [];
-                in if builtins.isFunction pkgs then pkgs ctx.ap2Instance.crossPkgs else pkgs;
+                in if builtins.isFunction pkgs then pkgs instance.crossPkgs else pkgs;
             };
 
             rom = instance.rom {
@@ -301,7 +297,7 @@ mkIntegrationTest =
             # Optional check derivation — validates the ROM/sysroot contents.
             checkDerivation =
               if spec ? check
-              then { "${targetTriple}-e2e-${spec.name}" = spec.check ctx sysroot; }
+              then { "${targetTriple}-e2e-${spec.name}-check" = spec.check ctx sysroot; }
               else {};
           in {
             # The ROM itself — buildable via nix build.

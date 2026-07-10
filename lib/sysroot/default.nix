@@ -1,9 +1,20 @@
 {
   buildPkgs,
+  crossPkgs,
   externalMappings ? [],
   glibcPlugins ? [],
+  toolchainConfig ? {},
 }: let
   lib = buildPkgs.lib;
+
+  # Determine where glibc looks for libraries and config at runtime.
+  glibcRuntimePrefix = (toolchainConfig.glibc or {}).runtimePrefix or null;
+  glibcEtcDir =
+    if glibcRuntimePrefix != null then "${glibcRuntimePrefix}/etc"
+    else "etc";
+  pluginLibDir =
+    if glibcRuntimePrefix != null then "${glibcRuntimePrefix}/lib"
+    else "lib";
 
   # --- glibc plugin / nsswitch.conf generation ---
   pluginDecls = map (p: p.passthru.glibcPlugin) glibcPlugins;
@@ -188,16 +199,16 @@ in {
       # --- glibc plugin assembly ---
       # Only apply glibc plugins if glibc itself is in the sysroot closure.
       ${lib.optionalString hasGlibcPlugins ''
-        if grep -Fxq "${buildPkgs.glibc}" ${closure}/store-paths; then
+        if grep -Fxq "${crossPkgs.glibc}" ${closure}/store-paths; then
           ${lib.concatMapStringsSep "\n" (plugin: ''
             if [ -d "${plugin}/lib" ]; then
-              mkdir -p "$out/lib"
-              cp -a --no-preserve=ownership "${plugin}/lib"/. "$out/lib"/
+              mkdir -p "$out/${pluginLibDir}"
+              cp -a --no-preserve=ownership "${plugin}/lib"/. "$out/${pluginLibDir}"/
             fi
           '') glibcPlugins}
 
-          mkdir -p "$out/etc"
-          cat > "$out/etc/nsswitch.conf" <<'ARDOS_NSS'
+          mkdir -p "$out/${glibcEtcDir}"
+          cat > "$out/${glibcEtcDir}/nsswitch.conf" <<'ARDOS_NSS'
 ${nsswitchConf}
 ARDOS_NSS
         fi

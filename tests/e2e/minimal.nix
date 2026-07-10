@@ -1,13 +1,13 @@
-## Minimal ROM — glibc + libgcc only, no applications, no plugins.
+## Minimal ROM — empty sysroot, no applications, no plugins.
 ##
-## Validates that the core glibc overlay produces a working sysroot
-## with no embedded /nix/store paths.
+## Validates that the build pipeline produces a valid (empty) ROM
+## end-to-end with an empty closure.
 {
   name = "minimal";
 
-  ## No packages beyond what externalMappings provides (glibc + libgcc).
+  ## No packages — empty closure, empty sysroot.
   packages = [];
 
-  ## No glibc plugins — bare system.
+  ## No glibc plugins.
   glibcPlugins = [];
 }

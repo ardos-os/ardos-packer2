@@ -18,8 +18,15 @@
   };
 
   ## Verify the dynamic linker has no /nix/store references.
-  check = ctx: sysroot: ctx.buildPkgs.runCommand "e2e-toolchain-config-check" {} ''
-    ld="${sysroot}/lib/ld-linux-x86-64.so.2"
+  check = ctx: sysroot: let
+    linkerNames = {
+      x86_64-linux-ardos = "ld-linux-x86-64.so.2";
+      aarch64-linux-ardos = "ld-linux-aarch64.so.1";
+      riscv64-linux-ardos = "ld-linux-riscv64-lp64d.so.1";
+    };
+    ldName = linkerNames.${ctx.targetTriple};
+  in ctx.buildPkgs.runCommand "e2e-toolchain-config-check" {} ''
+    ld="${sysroot}/ardos/lib/${ldName}"
     if [ ! -f "$ld" ]; then
       echo "FAIL: dynamic linker not found at $ld" >&2
       exit 1

@@ -52,7 +52,7 @@ in rec {
       inherit buildPkgs crossPkgs externalMappings;
     };
     sysrootLib = import ./sysroot {
-      inherit buildPkgs externalMappings glibcPlugins;
+      inherit buildPkgs crossPkgs externalMappings glibcPlugins toolchainConfig;
     };
   in let
     instance = rec {
