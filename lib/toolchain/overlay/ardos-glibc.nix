@@ -70,11 +70,12 @@ if !isTarget then {} else {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlag;
     makeFlags = keptMakeFlags;
-    # When runtimePrefix is set, --prefix=/ardos makes make install try to
-    # write to /ardos/lib which doesn't exist in the sandbox. DESTDIR=$out
-    # redirects installs to $out/${runtimePrefix}/lib instead.
-    installFlags = (old.installFlags or [])
-      ++ lib.optional (runtimePrefix != null) "DESTDIR=$out";
+    # Nixpkgs glibc already sets install_root=$(out) in its own installFlags.
+    # Combined with --prefix=/ardos this produces the correct install path
+    # $out/ardos/lib. We must NOT add DESTDIR=$out here because
+    # glibc-nolibgcc (glibc.overrideAttrs in nixpkgs) inherits our flags,
+    # and DESTDIR prepended to the already-absolute libdir/bindir paths
+    # creates double-nested store paths that break the install phase.
     postPatch = cleanedPostPatch;
   });
 }
