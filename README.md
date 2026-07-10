@@ -21,6 +21,9 @@ ______________________________________________________________________
 
 The transition from the Nix store model to the final Ardos FHS runtime model relies on three key mechanisms: **Symbolic Link Mapping**, **Linker RUNPATH Translation**, and **Shebang Rewriting**.
 
+![diagram of the process](./docs/process-whiteboard.svg)
+
+
 ### 1. Symbolic Link Mapping (`mkArdosDerivation`)
 
 Nix store paths are treated strictly as a build-time implementation detail. Runtime locations are described declaratively by each Ardos package using `mkArdosDerivation`.
