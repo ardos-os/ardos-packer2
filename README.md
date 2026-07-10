@@ -72,7 +72,7 @@ ardosPackerLib.init {
 
 Because compiled binaries must find their shared library dependencies (like `libc.so` or `libskia.so`) at runtime in their final Ardos paths (e.g. `/ardos/lib` or `/ardos/graphics`), we cannot let them retain Nix store references in their `RUNPATH` headers. At the same time, we must avoid running fragile tools like `patchelf` on final images.
 
-To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/stdenv/hooks/ld-wrapper-hook](file:///lib/stdenv/hooks/ld-wrapper-hook) (injector) + [lib/stdenv/hooks/ld-wrapper-hook-impl](lib/stdenv/hooks/ld-wrapper-hook-impl) (bash wrapper) + [lib/stdenv/hooks/ardos-ld-translate.rs](lib/stdenv/hooks/ardos-ld-translate.rs) (rust script with the actual argument translation).
+To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/builder/hooks/ld-wrapper.sh](/lib/builder/hooks/ld-wrapper.sh) (injector) + [lib/builder/hooks/ld-wrapper-impl.sh](lib/builder/hooks/ld-wrapper-impl.sh) (bash wrapper) + [lib/builder/hooks/ardos_ld_translate.rs](lib/builder/hooks/ardos_ld_translate.rs) (rust script with the actual argument translation).
 * During package compilation, an Ardos setup hook aggregates all `runtimeLayout` maps of the package and its dependencies into a single translation file (`$ARDOS_RUNTIME_MAP`).
 * The linker wrapper intercepts all `-rpath` flags and translates them:
   * If a path matches a Nix store location in the translation map, it is replaced with the target Ardos path (e.g., `/nix/store/.../lib` ➔ `/ardos/lib`).
@@ -104,7 +104,20 @@ We use `just` as our task runner. The task configuration is split into discovera
   * `just fmt`: Formats all Nix files in the repository using `alejandra`.
 
 
+## Reliance on nixpkgs
+
+You might say because we currently rely on nixpkgs recipes that Ardos OS is not fully independent from Nix OS, you're not
+that far off. Even thought the structure of Ardos OS and Nix OS look nothing alike, it still feels wrong depending
+on the same code Nix OS is built on.
+
+We do have a plan to migrate over to our own derivations instead and completely break free from nixpkgs to manage the toolchain
+and build packages targetting Ardos OS, but that's not just viable right now during this experimental phase.
+
+
+
 ## AI Usage
+
+This is controversial so I'm already leaving here the disclaimer.
 
 We do use a bit of AI, especially because nixpkgs is really complex and we do often run into issues because of something that happens behind the scenes we don't usually notice. Don't see the use of AI here as slop, it is being used to deal with puzzling issues
 we just want to quickly get over with and deal with technical debt.
@@ -115,19 +128,9 @@ The repository features a local LLM setup you can call with
 nix run .#start-ai
 ```
 
-If you have a beefy machine, there's no need to beg billy G for tokens: you can download some local models and use them with
-your favorite Agent CLI like codex, claude code and others, but expect to need at least 64GB of RAM and a good dedicated GPU for a
-good experience.
+If you have a beefy machine like a gaming PC, there's no need to beg billy G for tokens: you can download some local models and use
+them with your favorite Agent CLI like codex, claude code and others, but expect to need at least 64GB of RAM/VRAM and a good
+dedicated GPU (so VRAM goes vroom vroom because it doesn't share the same memory bus as the CPU) that supports vulkan (no need for surface extension) for a good experience.
 
 If you have a weak machine with no option to host a minimally usable model for coding,
 you'll have to use ollama cloud models, which are not bad at all and the plan is not that expensive. Codex works best with `minimax-m3:cloud` model if you use that, the other models tend to think too much or not understand how to work with codex tools well.
-
-
-## Reliance on nixpkgs
-
-You might say because we currently rely on nixpkgs recipes that Ardos OS is not fully independent from Nix OS, you're not
-that far off. Even thought the structure of Ardos OS and Nix OS look nothing alike, it still feels wrong depending
-on the same code Nix OS is built on.
-
-We do have a plan to migrate over to our own derivations instead and completely break free from nixpkgs to manage the toolchain
-and build packages targetting Ardos OS, but that's not just viable right now during this experimental phase.
