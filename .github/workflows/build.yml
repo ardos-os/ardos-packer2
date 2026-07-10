@@ -55,7 +55,7 @@ jobs:
           nix develop --command just build pkg ${{ matrix.package }} ${{ matrix.build.arch }} ${{ matrix.target_triple }}
 
   checks:
-    name: Check `${{ matrix.test_name }}` (${{ matrix.target_triple }})
+    name: Check `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
