@@ -141,11 +141,17 @@ This is controversial so I'm already leaving here the disclaimer.
 We do use a bit of AI, especially because nixpkgs is really complex and we do often run into issues because of something that happens behind the scenes we don't usually notice. Don't see the use of AI here as slop, it is being used to deal with puzzling issues
 we just want to quickly get over with and deal with technical debt. All the code is still thourougly tested and audited for code quality both through unit tests, integration tests and manual tests.
 
+
+<details><summary>Local AI</summary>
+<p>
+
 The repository features a local LLM setup you can call with
 
 ```
 just start-ai
 ```
+
+
 
 If you have a beefy machine like a gaming PC, there's no need to beg billy G for tokens: you can download some local models and use
 them with your favorite Agent CLI like codex, claude code and others, but expect to need at least 64GB of RAM/VRAM and a good
@@ -153,3 +159,6 @@ dedicated GPU (so VRAM goes vroom vroom because it doesn't share the same memory
 
 If you have a weak machine with no option to host a minimally usable model for coding,
 you'll have to use ollama cloud models, which are not bad at all and the plan is not that expensive. Codex works best with `minimax-m3:cloud` model if you use that, the other models tend to think too much or not understand how to work with codex tools well.
+
+</p>
+</details> 
