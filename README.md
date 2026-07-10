@@ -41,9 +41,10 @@ mkArdosDerivation {
 }
 ```
 
-During the build, this mapping is stored as metadata in the package's output directory (`$out/nix-support/ardos-layout`). The `mkRuntimeTree` helper consumes this metadata to generate a separate derivation containing a materialized tree of symbolic links.
+During the build, this mapping is stored as metadata in the package's output directory (`$out/nix-support/ardos-layout`). The `mkRuntimeTree` helper consumes this metadata to generate a separate derivation containing a projection of how the package will
+look like inside the real Ardos OS filesystem in the form of a tree of symbolic links.
 
-When the ROM generator constructs the final squashfs, it follows these symlinks to assemble the files at their final target paths, checking for collisions between packages.
+When the sysroot materializer constructs the final squashfs, it follows these symlinks to assemble the files at their final target paths, checking for collisions between packages.
 
 ------
 
