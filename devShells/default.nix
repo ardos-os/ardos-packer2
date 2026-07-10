@@ -12,7 +12,7 @@ in
     };
     crossPkgs = ardosPacker.crossPkgs;
   in
-    lib.nameValuePair system {
+    lib.nameValuePair system (lib.optionalAttrs buildPlatform.enableDevShell {
       default = pkgs.mkShell {
         name = "ardos-packer-devshell";
         packages = with pkgs; [just alejandra nix-output-monitor cachix git];
@@ -29,5 +29,5 @@ in
           echo "============================================="
         '';
       };
-    }
+    })
   ) ardosPackerLib.platforms

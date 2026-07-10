@@ -9,9 +9,10 @@
     llvmTarget = "AArch64";
     rust.rustcTargetSpec = ./rustTargets/aarch64-linux-ardos.json;
   }
-  # {
-  #   cpu = "riscv64";
-  #   llvmTarget = "RISCV";
-  #   rust.rustcTargetSpec = ./rustTargets/riscv64gc-linux-ardos.json;
-  # }
+  {
+    cpu = "riscv64";
+    llvmTarget = "RISCV";
+    rust.rustcTargetSpec = ./rustTargets/riscv64gc-linux-ardos.json;
+    enableDevShell = false;
+  }
 ]
