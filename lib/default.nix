@@ -43,11 +43,41 @@ in rec {
     builder = import ./builder {
       inherit buildPkgs crossPkgs externalMappings;
     };
-  in {
-    inherit crossPkgs;
-    inherit (builder) mkArdosDerivation mkRuntimeTree;
-    cc = toolchain.toolchain.cc;
-    # Placeholder: real implementation lands with Milestone 3 (ROM generator).
-    ardosRom = import ./ardosRom.nix toolchain;
-  };
+    sysrootLib = import ./sysroot {
+      inherit buildPkgs externalMappings;
+    };
+  in let
+    instance = rec {
+      inherit buildPkgs crossPkgs;
+      inherit (builder) mkArdosDerivation mkRuntimeTree;
+
+      stdenv = crossPkgs.stdenv;
+      cc = toolchain.toolchain.cc;
+
+      callPackage = path: overrides:
+        let
+          scope = crossPkgs // {
+            inherit mkArdosDerivation mkRuntimeTree;
+            ap2 = instance;
+          };
+        in
+          lib.callPackageWith scope path overrides;
+
+      sysroot = sysrootLib.mkSysroot;
+
+      rom = {
+        sysroot,
+        name ? "ardos-rom",
+      }:
+        buildPkgs.runCommand "${name}.squashfs" {
+          nativeBuildInputs = [
+            buildPkgs.squashfsTools
+          ];
+        } ''
+          mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
+        '';
+
+    };
+  in
+    instance;
 }

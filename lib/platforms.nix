@@ -3,11 +3,12 @@
   mkArdosPlatform = {
     cpu,
     llvmTarget,
-    rust,
+    rust ? {},
+    enableDevShell ? true
   }: {
     name = cpu;
     value = {
-      inherit cpu llvmTarget rust;
+      inherit cpu llvmTarget rust enableDevShell;
       kernel = "linux";
       abi = "ardos";
       isLinux = true;

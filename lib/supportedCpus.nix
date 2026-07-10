@@ -13,5 +13,6 @@
     cpu = "riscv64";
     llvmTarget = "RISCV";
     rust.rustcTargetSpec = ./rustTargets/riscv64gc-linux-ardos.json;
+    enableDevShell = false;
   }
 ]
