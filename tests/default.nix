@@ -50,23 +50,28 @@ in
       ) ardosPackerLib.platforms
       // lib.optionalAttrs (system == "x86_64-linux") {
         hello-chroot-x86_64-linux-ardos = let
-          sysroot = pkgs.ardos-sysroot-x86_64-linux-ardos;
-        in
-          buildPkgs.runCommand "check-hello-chroot-x86_64-linux-ardos" {
-            nativeBuildInputs = [buildPkgs.coreutils];
-          } ''
-            echo "Running /hello/hello inside ${sysroot} with chroot..."
-            actual=$(chroot ${sysroot} /hello/hello)
-            expected=$'Hello from hellolibrary!\n2 + 3 = 5'
+            sysroot = pkgs.ardos-sysroot-x86_64-linux-ardos;
+          in
+            buildPkgs.runCommand "check-hello-chroot-x86_64-linux-ardos" {
+              nativeBuildInputs = [
+                buildPkgs.coreutils
+                buildPkgs.proot
+              ];
+            } ''
+              echo "Running /hello/hello inside ${sysroot} with proot..."
 
-            if [ "$actual" != "$expected" ]; then
-              echo "Unexpected hello output:" >&2
-              printf '%s\n' "$actual" >&2
-              exit 1
-            fi
+              actual=$(
+                proot \
+                  -R ${sysroot} \
+                  /hello/hello
+              )
 
-            touch $out
-          '';
+              expected=$'Hello from hellolibrary!\n2 + 3 = 5'
+
+              test "$actual" = "$expected"
+
+              echo $? > $out
+            '';
       }
     )
   ) ardosPackerLib.platforms
