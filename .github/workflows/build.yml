@@ -63,6 +63,9 @@ jobs:
         test_name:
           - [ unit hello-binary ]
           - [ integration hello ]
+          - [ e2e minimal ]
+          - [ e2e nss-plugins ]
+          - [ e2e toolchain-config ]
         target_triple:
           - x86_64
           - aarch64

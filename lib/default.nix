@@ -24,12 +24,15 @@ in rec {
   #                   (e.g. { cpu = "x86_64"; kernel = "linux"; abi = "ardos"; ... })
   #   buildSystem:    string identifying the host nix system
   #                   (e.g. "x86_64-linux")
+  #   toolchainConfig: optional attrset for toolchain-level concerns
+  #                   (e.g. { glibc = { runtimePrefix = "/ardos"; }; })
   init = args: let
     inherit (args) targetPlatform buildSystem;
     externalMappingsArg = args.externalMappings or [];
+    toolchainConfig = args.toolchainConfig or {};
     host = import ./host {inherit nixpkgs;};
     toolchain = import ./toolchain {
-      inherit nixpkgs targetPlatform buildSystem host;
+      inherit nixpkgs targetPlatform buildSystem host toolchainConfig;
       rustScript = import ./builder/rustScript.nix {
         buildPkgs = nixpkgs.legacyPackages.${buildSystem} or
           (throw "lib/default.nix: buildPkgs for ${buildSystem} not available; check that nixpkgs.legacyPackages.${buildSystem} is set");
@@ -40,11 +43,16 @@ in rec {
       if builtins.isFunction externalMappingsArg
       then externalMappingsArg crossPkgs
       else externalMappingsArg;
+    glibcPluginsArg = args.glibcPlugins or [];
+    glibcPlugins =
+      if builtins.isFunction glibcPluginsArg
+      then glibcPluginsArg crossPkgs
+      else glibcPluginsArg;
     builder = import ./builder {
       inherit buildPkgs crossPkgs externalMappings;
     };
     sysrootLib = import ./sysroot {
-      inherit buildPkgs externalMappings;
+      inherit buildPkgs externalMappings glibcPlugins;
     };
   in let
     instance = rec {
@@ -53,6 +61,11 @@ in rec {
 
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
+
+      nssFilesPlugin = import ./plugins/nss-files.nix {
+        glibc = crossPkgs.glibc;
+        inherit (buildPkgs) runCommand;
+      };
 
       callPackage = path: overrides: let
         scope =
@@ -78,6 +91,8 @@ in rec {
           mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
         '';
       setExternalMappings = mappings: init (args // {externalMappings = mappings;});
+      setGlibcPlugins = plugins: init (args // {glibcPlugins = plugins;});
+      setToolchainConfig = config: init (args // {toolchainConfig = config;});
     };
   in
     instance;

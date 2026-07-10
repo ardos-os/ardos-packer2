@@ -4,6 +4,7 @@
 # (e.g. x86_64-linux-ardos). Wires the overlay that:
 #
 #   * patches cross-binutils and glibc for the ardos ABI
+#   * strips Nix-specific runtime artifacts from glibc (via overlay/ardos-glibc.nix)
 #   * wraps the target stdenv so every Ardos package gets config.sub patched
 #     (without invalidating the toolchain itself) and the ardos-setup hook
 #   * injects the stable ld-wrapper stub into the cross bintools wrapper
@@ -11,12 +12,14 @@
 #
 # `host` is the patched host nixpkgs from Stage 0.
 # `builder` exposes `rustScript`, used here to compile ardos-setup-tool.
+# `toolchainConfig` carries toolchain-level concerns (e.g. glibc.runtimePrefix).
 {
   nixpkgs,
   targetPlatform,
   buildSystem,
   host,
   rustScript,
+  toolchainConfig ? {},
 }: let
   inherit (host) patchedNixpkgs;
 
@@ -129,7 +132,14 @@
       });
       clang = final.llvmPackages.clang;
 
-      glibc = prev.glibc.overrideAttrs (old: {
+      glibc = let
+        ardosGlibcOverlay = import ./overlay/ardos-glibc.nix {lib = nixpkgs.lib;};
+        glibcConfig = toolchainConfig.glibc or {};
+        overlay = ardosGlibcOverlay {
+          glibc = prev.glibc;
+          runtimePrefix = glibcConfig.runtimePrefix or null;
+        };
+      in (overlay final prev).glibc.overrideAttrs (old: {
         preConfigure = patchAutotoolsConfig (old.preConfigure or null);
       });
     }
