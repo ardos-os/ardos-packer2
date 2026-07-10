@@ -95,16 +95,22 @@ ______________________________________________________________________
 ## Development Workflows
 
 We use `just` as our task runner. The task configuration is split into discoverable submodules:
+```
+[tiago@tiago-hp ardos-packer2]$ just
+Available recipes:
+    default              # Show all available recipes including submodules
+    env target="default" # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
+    start-ai             # Starts local ollama server and ollama client in a preset zellij layout
+    build:
+        check name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
+        pkg name arch="x86_64" target=arch   # Build an package exported from the flake outputs by name
 
-- **Build recipes** (`justfiles/build.just`):
-  - `just build stdenv`: Builds the stdenv toolchain.
-  - `just build toolchain <cc/binutils/glibc>`: Builds a specific component of the cross-compilation toolchain.
-  - `just build pkg <name>`: Builds a specific Ardos package (e.g. `hello`, `hellolibrary`). Output symlinks are placed under the `build/` directory.
-- **Cachix recipes** (`justfiles/cache.just`):
-  - `just cache stdenv`: Builds the toolchain and pushes Ardos-specific paths to the Cachix binary cache.
-- **Formatting** (`justfiles/fmt.just`):
-  - `just fmt`: Formats all Nix files in the repository using `alejandra`.
-
+    fmt:
+        md       # [alias: markdown]
+        nix      # Format all Nix files in the repository using alejandra
+        rs       # [alias: rust]
+        sh       # [aliases: script, shell]
+```
 ## Reliance on nixpkgs
 
 You might say because we currently rely on nixpkgs recipes that Ardos OS is not fully independent from Nix OS, you're not
