@@ -81,4 +81,11 @@ if !isTarget then {} else {
       ++ lib.optional (runtimePrefix != null) "install_root=$out";
     postPatch = cleanedPostPatch;
   });
+
+  # glibc-nolibgcc is derived from glibc in nixpkgs' fixed point, so it
+  # inherits our --prefix and install_root overrides.  The combination of
+  # install_root=$out with nixpkgs' absolute libdir paths creates double-
+  # nested store paths (inst_libdir = $out + /nix/store/xxx/lib).  Pin
+  # glibc-nolibgcc to the pre-overlay version to avoid this.
+  glibc-nolibgcc = prev.glibc-nolibgcc;
 }
