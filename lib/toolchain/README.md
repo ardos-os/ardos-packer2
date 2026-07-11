@@ -7,7 +7,7 @@ Ardos target packages.
 
 - `nixpkgs`: the original Nixpkgs input, used only to access library helpers.
 - `targetPlatform`: an Ardos platform from `lib/platforms.nix`, such as
-  `x86_64-linux-ardos`.
+  `x86_64-ardos-linux-gnu`.
 - `buildSystem`: the host system string used for native build tools.
 - `host`: the output of `lib/host`, including `patchedNixpkgs` and cache
   settings.
@@ -30,12 +30,10 @@ The Ardos overlay does only target-toolchain work:
 
 1. Patch autotools `config.sub` files so source packages accept the Ardos target
    triplet.
-1. Patch cross binutils and glibc where Nixpkgs needs target awareness.
 1. Wrap the target `stdenv` so Ardos target packages receive the setup hook from
    `lib/builder/setup`.
 1. Install the stable linker-wrapper stub from `lib/builder/hooks/ld-wrapper.sh`
    into cross bintools.
-1. Patch LLVM target-environment detection for Ardos.
 
 The stable linker stub is copied into the toolchain, while the mutable linker
 translation implementation remains outside it. This keeps toolchain rebuilds

@@ -28,7 +28,7 @@ in
           shellHook = ''
             echo "============================================="
             echo "  Ardos Cross-Compilation Shell Active       "
-            echo "  Target: x86_64-linux-ardos                 "
+            echo "  Target: x86_64-ardos-linux-gnu              "
             echo "  CC: $CC                                    "
             echo "============================================="
           '';

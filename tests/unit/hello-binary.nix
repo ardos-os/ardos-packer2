@@ -8,9 +8,9 @@ let
     ctx.pkgs.hello;
 
   expectedInterpreters = {
-    x86_64-linux-ardos = "/ardos/lib/ld-linux-x86-64.so.2";
-    aarch64-linux-ardos = "/ardos/lib/ld-linux-aarch64.so.1";
-    riscv64-linux-ardos = "/ardos/lib/ld-linux-riscv64-lp64d.so.1";
+    x86_64-ardos-linux-gnu = "/ardos/lib/ld-linux-x86-64.so.2";
+    aarch64-ardos-linux-gnu = "/ardos/lib/ld-linux-aarch64.so.1";
+    riscv64-ardos-linux-gnu = "/ardos/lib/ld-linux-riscv64-lp64d.so.1";
   };
 
   expectedInterpreter =

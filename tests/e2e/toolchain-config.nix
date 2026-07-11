@@ -20,9 +20,9 @@
   ## Verify the dynamic linker has no /nix/store references.
   check = ctx: sysroot: let
     linkerNames = {
-      x86_64-linux-ardos = "ld-linux-x86-64.so.2";
-      aarch64-linux-ardos = "ld-linux-aarch64.so.1";
-      riscv64-linux-ardos = "ld-linux-riscv64-lp64d.so.1";
+      x86_64-ardos-linux-gnu = "ld-linux-x86-64.so.2";
+      aarch64-ardos-linux-gnu = "ld-linux-aarch64.so.1";
+      riscv64-ardos-linux-gnu = "ld-linux-riscv64-lp64d.so.1";
     };
     ldName = linkerNames.${ctx.targetTriple} or (throw
       "toolchain-config e2e test: no linker name defined for ${ctx.targetTriple}");

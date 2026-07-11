@@ -1,48 +1,10 @@
 --- a/lib/systems/parse.nix
 +++ b/lib/systems/parse.nix
-@@ -653,6 +653,7 @@
-   types.abi = enum (attrValues abis);
+@@ -640,6 +640,7 @@
+    types.vendor = enum (attrValues vendors);
  
-   abis = setTypes types.openAbi {
+    vendors = setTypes types.openVendor {
 +    ardos = { };
-     msvc = { };
- 
-     # Note: eabi is specific to ARM and PowerPC.
---- a/pkgs/development/compilers/gcc/common/builder.nix	2026-07-07 16:19:51.248275190 +0100
-+++ b/pkgs/development/compilers/gcc/common/builder.nix	2026-07-07 17:35:59.130896051 +0100
-@@ -190,7 +190,9 @@
-       eval "$oldOpts"
-     '';
- 
--    preConfigure = (originalAttrs.preConfigure or "") + ''
-+    preConfigure = (lib.optionalString (lib.hasSuffix "-linux-ardos" stdenv.targetPlatform.config ) ''
-+    sed -i config.sub -e 's/| android\* | bsd\*/| android\* | bsd\* | ardos\*/' -e 's/| linux-android\*- /| linux-android\*- | linux-ardos\*- /'; cat config.sub
-+  '') + (originalAttrs.preConfigure or "") + ''
-       if test -n "$newlibSrc"; then
-           tar xvf "$newlibSrc" -C ..
-           ln -s ../newlib-*/newlib newlib
-
---- a/pkgs/development/libraries/gcc/libgcc/default.nix
-+++ b/pkgs/development/libraries/gcc/libgcc/default.nix
-@@ -38,6 +38,8 @@
-   depsBuildBuild = [ buildPackages.stdenv.cc ];
-   nativeBuildInputs = [ libiberty ];
-   buildInputs = [ glibc ];
-+  dontUpdateAutotoolsGnuConfigScripts =
-+    lib.hasSuffix "-linux-ardos" stdenv.targetPlatform.config;
- 
-   postUnpack = ''
-     mkdir -p ./build
-@@ -46,6 +48,12 @@
- 
-   postPatch = gcc.cc.passthru.forceLibgccToBuildCrtStuff + ''
-     sourceRoot=$(readlink -e "./libgcc")
-+  '' + lib.optionalString (lib.hasSuffix "-linux-ardos" stdenv.targetPlatform.config) ''
-+    substituteInPlace $sourceRoot/../config.sub \
-+      --replace-fail '| skyos* | haiku* | rdos* | toppers*' \
-+                     '| skyos* | haiku* | rdos* | ardos* | toppers*' \
-+      --replace-fail '| linux-relibc* | linux-uclibc* )' \
-+                     '| linux-relibc* | linux-uclibc* | linux-ardos* )'
-   '';
- 
-   preConfigure = ''
+      apple = { };
+      dec = { };
+      freescale = { };

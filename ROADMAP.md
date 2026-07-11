@@ -45,11 +45,9 @@ ______________________________________________________________________
 
 | Task | Status | Notes |
 |---|---|---|
-| Patch Nixpkgs for `ardos` ABI (`nixpkgs.patch`) | ✅ Done | Adds `ardos` to `parse.nix`, `libgcc`, `gcc` |
+| Patch Nixpkgs for `ardos` vendor (`nixpkgs.patch`) | ✅ Done | Adds `ardos` to `parse.nix` vendors enum |
 | `crossPkgs` setup with `ardosOverlay` | ✅ Done | Builds `bash` and toolchain for Ardos |
-| Patch `binutils-unwrapped` for `x86_64-linux-ardos` | ✅ Done | Via `binutils-add-ardos.patch` |
-| Patch `glibc` for `x86_64-linux-ardos` | ✅ Done | Via `glibc-add-ardos.patch` |
-| Patch LLVM for Ardos environment | ✅ Done | Via `llvm-add-ardos-environment.patch` |
+| Patch `glibc` for `x86_64-ardos-linux-gnu` | ✅ Done | Via `glibc-add-ardos.patch` |
 | Wrap `stdenv.mkDerivation` to patch `config.sub` in-place | ✅ Done | For target packages |
 | Refactor `lib/stdenv/default.nix` with clean `let` blocks | ✅ Done | `ardosOverlay`, `wrapStdenvForArdos`, `patchAutotoolsConfig` |
 
@@ -114,19 +112,19 @@ ______________________________________________________________________
 | Caching dependency crate builds across packages/components written in rust | 🔲 |  |
 | Building rust projects with `rustPlatform` from nixpkgs should just work | 🔲 |  |
 | Similarly to the C compiler, rustc also needs to be a cross compiler to ardos and should compile effortlessly with the same experience as compiling to the host machine itself, no noisy derivations | 🔲 | |
-| Verify `cargo build --target x86_64-linux-ardos.json` works without `-Z build-std` | 🔲 | |
+| Verify `cargo build --target x86_64-ardos-linux-gnu.json` works without `-Z build-std` | 🔲 | |
 | Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix` | ✅ Done | Already declared |
 
 ______________________________________________________________________
 
 ### Milestone 5 — Multi-Architecture Support ✅
 
-> Validate that the same infrastructure works for `aarch64-linux-ardos` and `riscv64-linux-ardos` without code duplication.
+> Validate that the same infrastructure works for `aarch64-ardos-linux-gnu` and `riscv64-ardos-linux-gnu` without code duplication.
 
 | Task | Status | Notes |
 |---|---|---|
-| Verify `aarch64-linux-ardos` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-aarch64-linux-ardos` |
-| Verify `riscv64-linux-ardos` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-riscv64-linux-ardos` |
+| Verify `aarch64-ardos-linux-gnu` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-aarch64-ardos-linux-gnu` |
+| Verify `riscv64-ardos-linux-gnu` cross-compilation builds | ✅ Done | Via `packages.x86_64-linux.cross-riscv64-ardos-linux-gnu` |
 | Verify `runtimeLayoutScript` is arch-agnostic | ✅ Done | Scripts should not contain architecture-specific paths |
 | Cross-compile `ardos-rom` for each supported architecture | ✅ Done | |
 

@@ -1,14 +1,12 @@
 # lib/toolchain — Stage 1: cross-compilation toolchain.
 #
 # Builds `crossPkgs`, a Nixpkgs instance configured for the Ardos target
-# (e.g. x86_64-linux-ardos). Wires the overlay that:
+# (e.g. x86_64-ardos-linux-gnu). Wires the overlay that:
 #
-#   * patches cross-binutils and glibc for the ardos ABI
 #   * strips Nix-specific runtime artifacts from glibc (via overlay/ardos-glibc.nix)
 #   * wraps the target stdenv so every Ardos package gets config.sub patched
 #     (without invalidating the toolchain itself) and the ardos-setup hook
 #   * injects the stable ld-wrapper stub into the cross bintools wrapper
-#   * patches LLVM's environment detection
 #
 # `host` is the patched host nixpkgs from Stage 0.
 # `builder` exposes `rustScript`, used here to compile ardos-setup-tool.
@@ -34,10 +32,8 @@
     ''
       find . -name config.sub -exec sed -i {} \
         -e 's/| redox\* | bme\*/| redox* | ardos* | bme*/' \
-        -e 's/| linux-relibc\*- | linux-uclibc\*- )/| linux-relibc*- | linux-uclibc*- | linux-ardos*- )/' \
         -e 's/| rtmk-nova\*)/| rtmk-nova* | ardos*)/' \
-        -e 's/gnu\* | android\*/gnu* | android* | ardos*/' \
-        -e 's/linux-android\* | linux-newlib\*/linux-android* | linux-ardos* | linux-newlib*/' \;
+        -e 's/gnu\* | android\*/gnu* | android* | ardos*/' \;
     ''
     + (
       if preConfigure == null
@@ -100,15 +96,6 @@
         then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
         else prev.stdenv;
 
-      binutils-unwrapped =
-        if isCrossTool
-        then
-          prev.binutils-unwrapped.overrideAttrs (old: {
-            patches = (old.patches or []) ++ [./patches/binutils-add-ardos.patch];
-            dontUpdateAutotoolsGnuConfigScripts = true;
-          })
-        else prev.binutils-unwrapped;
-
       bintools =
         if isCrossTool
         then
@@ -121,16 +108,7 @@
           })
         else prev.bintools;
 
-      llvmPackages = prev.llvmPackages.overrideScope (llvmFinal: llvmPrev: {
-        llvm = llvmPrev.llvm.overrideAttrs (old: {
-          patches =
-            (old.patches or [])
-            ++ [
-              ./patches/llvm-add-ardos-environment.patch
-            ];
-        });
-      });
-      clang = final.llvmPackages.clang;
+      clang = prev.llvmPackages.clang;
 
       glibc = let
         ardosGlibcOverlay = import ./overlay/ardos-glibc.nix {lib = nixpkgs.lib;};

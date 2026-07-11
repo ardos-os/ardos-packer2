@@ -9,12 +9,13 @@
     name = cpu;
     value = rec {
       inherit cpu llvmTarget rust enableDevShell;
+      vendor = "ardos";
       kernel = "linux";
-      abi = "ardos";
+      abi = "gnu";
       isLinux = true;
       libc = "glibc";
       isArdos = true;
-      ardosTriple = "${cpu}-${kernel}-${abi}";
+      ardosTriple = "${cpu}-${vendor}-${kernel}-${abi}";
       config = ardosTriple;
       linuxTriple = "${cpu}-${kernel}";
     };
