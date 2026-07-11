@@ -1,10 +1,10 @@
 --- a/lib/systems/parse.nix
 +++ b/lib/systems/parse.nix
-@@ -640,6 +640,7 @@
-    types.vendor = enum (attrValues vendors);
+@@ -498,6 +498,7 @@
  
-    vendors = setTypes types.openVendor {
+   vendors = setTypes types.openVendor {
+     apple = { };
 +    ardos = { };
-      apple = { };
-      dec = { };
-      freescale = { };
+     pc = { };
+     knuth = { };
+     # Actually matters, unlocking some MinGW-w64-specific options in GCC. See
