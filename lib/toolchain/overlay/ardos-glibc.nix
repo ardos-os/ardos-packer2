@@ -153,8 +153,6 @@ in
         # runtime-derived variables instead of the base dirs.
         "gconvdir=${runtimePrefix}/lib/gconv"
         "inst_gconvdir=$(out)/lib/gconv"
-        "complocaledir=${runtimePrefix}/lib/locale"
-        "inst_complocaledir=$(out)/lib/locale"
         "localedir=${runtimePrefix}/lib/locale"
         "inst_localedir=$(out)/lib/locale"
         "zonedir=${runtimePrefix}/share/zoneinfo"
@@ -166,6 +164,18 @@ in
         # (getconf reads GETCONF_DIR from it) while keeping the install
         # destination at $out.
         "libexecdir=${runtimePrefix}/libexec"
+
+        # complocaledir CANNOT be overridden to /ardos: localedata's
+        # build-one-locale rule writes the locale archive to $(complocaledir)
+        # directly (not inst_complocaledir), so pointing it at /ardos breaks
+        # install into the sandbox.  Instead we keep complocaledir at the
+        # install location ($(libdir)/locale = $out/lib/locale) and override
+        # only the COMPILED-IN default that libc bakes in via locale-CPPFLAGS
+        # (COMPLOCALEDIR / LOCALE_ALIAS_PATH).  localepath feeds
+        # CPPFLAGS-locale-programs (localedef's default source lookup); we
+        # point it at /ardos so the ROM's localedef is consistent.
+        "locale-CPPFLAGS=-DCOMPLOCALEDIR='\"${runtimePrefix}/lib/locale\"' -DLOCALE_ALIAS_PATH='\"${runtimePrefix}/lib/locale\"' -Iprograms"
+        "localepath=\"${runtimePrefix}/lib/locale:${runtimePrefix}/share/i18n\""
 
         # inst_* redirect install destinations for libraries.
         # inst_includedir is NOT overridden: the nixpkgs multi-output
