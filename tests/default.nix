@@ -242,7 +242,9 @@ mkIntegrationTest =
               runIntegrationTestsForTarget
                 buildPlatform
                 targetPlatform)
-            ap2.platforms
+            (lib.filterAttrs
+              (_: targetPlatform: buildPlatform.cpu == targetPlatform.cpu)
+              ap2.platforms)
         );
 
   ################################################################################

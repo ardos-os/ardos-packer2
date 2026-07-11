@@ -29,24 +29,24 @@
   ## Extra validation: the check derivation verifies the ROM contents.
   check = ctx: sysroot: let tree = "${ctx.ap2Instance.buildPkgs.tree}/bin/tree"; in ctx.buildPkgs.runCommand "e2e-nss-plugins-check" {} ''
     # Verify nsswitch.conf was generated.
-    if [ ! -f "${sysroot}/etc/nsswitch.conf" ]; then
+    if [ ! -f "${sysroot}/ardos/etc/nsswitch.conf" ]; then
       echo "FAIL: nsswitch.conf not found in sysroot" >&2
       ${tree} ${sysroot}
-      cat ${sysroot}/etc/nsswitch.conf || true
+      cat ${sysroot}/ardos/etc/nsswitch.conf || true
       exit 1
     fi
 
     # Verify it contains the expected database lines.
-    if ! grep -q "^passwd:" "${sysroot}/etc/nsswitch.conf"; then
+    if ! grep -q "^passwd:" "${sysroot}/ardos/etc/nsswitch.conf"; then
       echo "FAIL: nsswitch.conf missing passwd: line" >&2
       ${tree} ${sysroot}
-      cat ${sysroot}/etc/nsswitch.conf || true
+      cat ${sysroot}/ardos/etc/nsswitch.conf || true
       exit 1
     fi
-    if ! grep -q "^group:" "${sysroot}/etc/nsswitch.conf"; then
+    if ! grep -q "^group:" "${sysroot}/ardos/etc/nsswitch.conf"; then
       echo "FAIL: nsswitch.conf missing group: line" >&2
       ${tree} ${sysroot}
-      cat ${sysroot}/etc/nsswitch.conf || true
+      cat ${sysroot}/ardos/etc/nsswitch.conf || true
       exit 1
     fi
 
