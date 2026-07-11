@@ -39,7 +39,6 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
-            extra-platforms = ${{ matrix.build.extra_platforms }}
 
       - name: Push build outputs to Cachix
         uses: cachix/cachix-action@v17
@@ -62,10 +61,8 @@ jobs:
         build:
           - runner: blacksmith-8vcpu-ubuntu-2404
             arch: x86_64
-            extra_platforms: x86_64-linux aarch64-linux riscv64-linux
           - runner: blacksmith-8vcpu-ubuntu-2404-arm
             arch: aarch64
-            extra_platforms: aarch64-linux x86_64-linux riscv64-linux
         target_triple:
           - x86_64
           - aarch64
@@ -86,7 +83,6 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
-            extra-platforms = ${{ matrix.build.extra_platforms }}
 
       - name: Push build outputs to Cachix
         uses: cachix/cachix-action@v17
@@ -129,7 +125,6 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
-            extra-platforms = x86_64-linux aarch64-linux riscv64-linux
 
       - name: Push build outputs to Cachix
         uses: cachix/cachix-action@v17
@@ -165,7 +160,6 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
-            extra-platforms = x86_64-linux aarch64-linux riscv64-linux
       - name: Run tests
         run: |
           nix flake check
