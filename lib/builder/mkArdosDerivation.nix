@@ -113,6 +113,121 @@
 in rec {
   inherit mkRuntimeTree;
 
+  # Turn an existing derivation into an Ardos derivation by attaching runtime
+  # layout metadata. The original derivation is rebuilt via `overrideAttrs` so
+  # that a `postInstall` hook can generate `$out/nix-support/ardos-layout`.
+  #
+  # Ardos-specific build attrs (`_ardos_translate`, `__ardosLdHook__`,
+  # `ARDOS_EXTERNAL_MAPPINGS`) are injected so the rebuild has full linker
+  # translation support even when the original derivation lacked them.
+  #
+  # Two-pass overrideAttrs: the first pass generates the layout file, the
+  # second attaches `passthru.ardos` (including `runtimeTree`) which needs to
+  # read from the first pass's output.
+  #
+  # Usage:
+  #   wrapDerivation someDrv { runtimeLayoutScript = ''...''; }
+  #   wrapDerivation someDrv { runtimeLayout = [ { source = "lib/..."; target = "/..."; } ]; }
+  wrapDerivation = drv: {
+    runtimeLayoutScript ? null,
+    runtimeLayout ? [],
+  }: let
+    pname = drv.pname or drv.name;
+    version = drv.version or "0";
+
+    resolvedLayoutScript =
+      if runtimeLayoutScript != null
+      then runtimeLayoutScript
+      else layoutListToScript runtimeLayout;
+
+    # Pass 1: rebuild with ardos build attrs and layout-generating postInstall.
+    drvWithLayout = drv.overrideAttrs (old: {
+      _ardos_translate = let
+        ardosEarlyInit = rustScript "ardos_ld_translate" ./hooks/ardos_ld_translate.rs;
+        ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos_ld_translate";
+      in
+        ardosEarlyInitExe;
+      __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
+      ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
+
+      postInstall =
+        (old.postInstall or "")
+        + ''
+          echo "[Ardos Layout] Resolving runtime layout for ${pname} (wrapDerivation)..."
+
+          if [ "''${NIX_DEBUG:-0}" = "1" ]; then
+            layout_debug=1
+          else
+            layout_debug=0
+          fi
+
+          mkdir -p $out/nix-support
+
+          if [ -z "${toString resolvedLayoutScript}" ]; then
+            echo "[Ardos Layout] No runtimeLayoutScript / runtimeLayout declared; writing empty layout." >&2
+            : > $out/nix-support/ardos-layout
+          else
+            stage=$(mktemp -d -t ardos-layout-XXXXXX)
+            trap 'rm -rf "$stage"' EXIT
+
+            out=$out stage=$stage bash -c ${lib.escapeShellArg resolvedLayoutScript}
+
+            : > $out/nix-support/ardos-layout
+            [ "$layout_debug" = "1" ] && echo "[Ardos Layout] Walking $stage..." >&2
+
+            while IFS= read -r -d $'\0' entry; do
+              rel="''${entry#$stage/}"
+              [ "$rel" = "$entry" ] && continue
+
+              target="/$rel"
+
+              if [ -L "$entry" ]; then
+                pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
+                if [ -n "$pointed" ] && [[ "$pointed" == "$out"/* ]]; then
+                  src_rel="''${pointed#$out/}"
+                else
+                  src_rel=$(readlink -- "$entry")
+                fi
+              elif [ -f "$entry" ]; then
+                echo "error: runtimeLayoutScript for ${pname} created a concrete file in ardos-layout: $entry" >&2
+                exit 1
+              else
+                continue
+              fi
+
+              printf '%s -> %s\n' "$src_rel" "$target" >> $out/nix-support/ardos-layout
+            done < <(find "$stage" -mindepth 1 -print0)
+
+            if [ "$layout_debug" = "1" ]; then
+              echo "[Ardos Layout] Resolved layout for ${pname}:" >&2
+              sed 's/^/  /' $out/nix-support/ardos-layout >&2
+            fi
+          fi
+
+          if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
+            cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
+          fi
+        '';
+    });
+
+    # Pass 2: attach passthru.ardos metadata. References drvWithLayout which
+    # already contains nix-support/ardos-layout in its output.
+    wrappedDrv = drvWithLayout.overrideAttrs (old: {
+      passthru =
+        (old.passthru or {})
+        // {
+          ardos = {
+            runtimeLayoutScript = resolvedLayoutScript;
+            runtimeTree = mkRuntimeTree {
+              inherit pname version;
+              drv = drvWithLayout;
+            };
+          };
+        };
+    });
+  in
+    wrappedDrv;
+
   # The main package builder
   mkArdosDerivation = {
     pname,

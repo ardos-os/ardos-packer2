@@ -49,18 +49,18 @@ in rec {
   in let
     instance = rec {
       inherit buildPkgs crossPkgs;
-      inherit (builder) mkArdosDerivation mkRuntimeTree;
+      inherit (builder) mkArdosDerivation mkRuntimeTree wrapDerivation;
 
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
 
       callPackage = path: overrides: let
-        scope =
-          crossPkgs
-          // {
-            inherit mkArdosDerivation mkRuntimeTree;
-            ap2 = instance;
-          };
+      scope =
+        crossPkgs
+        // {
+          inherit mkArdosDerivation mkRuntimeTree wrapDerivation;
+          ap2 = instance;
+        };
       in
         lib.callPackageWith scope path overrides;
 
