@@ -211,7 +211,7 @@ in {
           '') glibcPlugins}
 
           mkdir -p "$out/${glibcEtcDir}"
-          cat > "$out/${glibcEtcDir}/nsswitch.conf" "${nsswitchConf}"
+          printf '%s' "${nsswitchConf}" > "$out/${glibcEtcDir}/nsswitch.conf"
         fi
       ''}
     '';
