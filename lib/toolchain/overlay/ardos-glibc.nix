@@ -105,7 +105,7 @@ if !isTarget then {} else {
       # into the Nix sandbox.
       "libdir=$(out)/lib"
       "slibdir=$(out)/lib"
-      "rtlddir=$(out)/lib"
+      "rtlddir=${runtimePrefix}/lib"
       # Runtime library search path for binaries (RPATH).
       "default-rpath=${runtimePrefix}/lib"
       # inst_* redirect install destinations for libraries.

@@ -10,7 +10,7 @@
   # Determine where glibc looks for libraries and config at runtime.
   glibcRuntimePrefix = (toolchainConfig.glibc or {}).runtimePrefix or null;
   glibcEtcDir =
-    if glibcRuntimePrefix != null then "${glibcRuntimePrefix}/etc"
+    if glibcRuntimePrefix != null then "/etc"
     else "etc";
   pluginLibDir =
     if glibcRuntimePrefix != null then "${glibcRuntimePrefix}/lib"
@@ -211,6 +211,7 @@ in {
               cp -a --no-preserve=ownership "${plugin}/lib"/. "$out/${pluginLibDir}"/
             fi
           '') glibcPlugins}
+
 
           mkdir -p "$out/${glibcEtcDir}"
           cp ${nsswitchConf} "$out/${glibcEtcDir}/nsswitch.conf"

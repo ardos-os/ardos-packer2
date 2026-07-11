@@ -20,6 +20,8 @@
       lib.concatMapAttrs (targetTriple: ardosPacker: let
         hellolibrary = ardosPacker.callPackage ./hellolibrary {};
         hello = ardosPacker.callPackage ./hello {inherit hellolibrary;};
+        glibcTest = ardosPacker.callPackage ./glibc-test {};
+        testEtc = ardosPacker.callPackage ./test-etc {};
         sysroot = ardosPacker.sysroot {
           name = "ardos-sysroot-${targetTriple}";
           includePackages = [hello];
@@ -33,6 +35,8 @@
           "stdenv" = ardosPacker.crossPkgs.stdenv;
           "hellolibrary" = hellolibrary;
           "hello" = hello;
+          "glibcTest" = glibcTest;
+          "testEtc" = testEtc;
         };
       })
       targetPackagesByTriple;

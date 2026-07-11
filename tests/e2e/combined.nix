@@ -1,7 +1,7 @@
 ## Combined test: runtimePrefix + glibcPlugins together.
 ##
 ## Validates that plugins are installed to the correct runtime prefix
-## paths (e.g. /ardos/lib/libnss_files.so, /ardos/etc/nsswitch.conf)
+## paths (e.g. /ardos/lib/libnss_files.so, /etc/nsswitch.conf)
 ## when both toolchainConfig and glibcPlugins are active.
 {
   name = "combined";
@@ -33,14 +33,15 @@
     ldName = linkerNames.${ctx.targetTriple} or (throw
       "combined e2e test: no linker name defined for ${ctx.targetTriple}");
   in ctx.buildPkgs.runCommand "e2e-combined-check" {} ''
+    export PATH="$PATH:${ctx.ap2Instance.buildPkgs.binutils}/bin/"
     # Verify nsswitch.conf is at the runtime prefix etc path.
-    if [ ! -f "${sysroot}/ardos/etc/nsswitch.conf" ]; then
-      echo "FAIL: nsswitch.conf not found at /ardos/etc/nsswitch.conf" >&2
+    if [ ! -f "${sysroot}/etc/nsswitch.conf" ]; then
+      echo "FAIL: nsswitch.conf not found at /etc/nsswitch.conf" >&2
       exit 1
     fi
 
     # Verify the nsswitch.conf content is correct.
-    if ! grep -q "^passwd: files$" "${sysroot}/ardos/etc/nsswitch.conf"; then
+    if ! grep -q "^passwd: files$" "${sysroot}/etc/nsswitch.conf"; then
       echo "FAIL: nsswitch.conf missing passwd: files" >&2
       exit 1
     fi

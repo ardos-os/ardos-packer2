@@ -145,11 +145,16 @@ mkIntegrationTest =
       then test.externalMappings ctx
       else [ ];
 
+    glibcPlugins =
+      if builtins.hasAttr "glibcPlugins" test
+      then test.glibcPlugins ctx
+      else [ ];
+
     ctx' =
       ctx
       // {
         ap2Instance =
-          ctx.ap2Instance.setExternalMappings externalMappings;
+          (ctx.ap2Instance.setExternalMappings externalMappings).setGlibcPlugins glibcPlugins;
       };
 
     spec =
