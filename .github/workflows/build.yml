@@ -17,10 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - runner: linux-amd64-16cores-blank
+          -             runner: blacksmith-16vcpu-ubuntu-2404
             arch: x86_64
             extra_platforms: x86_64-linux aarch64-linux riscv64-linux
-          - runner: linux-arm64-16cores-blank
+          -             runner: blacksmith-16vcpu-ubuntu-2404-arm
             arch: aarch64
             extra_platforms: aarch64-linux x86_64-linux riscv64-linux
         target_triple:
@@ -60,10 +60,10 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - runner: linux-amd64-8cores-blank
+          -             runner: blacksmith-8vcpu-ubuntu-2404
             arch: x86_64
             extra_platforms: x86_64-linux aarch64-linux riscv64-linux
-          - runner: linux-arm64-8cores-blank
+          -             runner: blacksmith-8vcpu-ubuntu-2404-arm
             arch: aarch64
             extra_platforms: aarch64-linux x86_64-linux riscv64-linux
         target_triple:
@@ -102,7 +102,7 @@ jobs:
   checks:
     name: Check `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
     needs: packages
-    runs-on: linux-amd64-8cores-blank
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
