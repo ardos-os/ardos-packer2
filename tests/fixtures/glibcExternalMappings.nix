@@ -8,8 +8,8 @@
 # NSS modules (libnss_*) are excluded from the core glibc mapping.
 # They are provided declaratively via glibcPlugins instead.
 crossPkgs: let
-  libgcc = crossPkgs.gcc.cc.libgcc;
-  glibc = crossPkgs.glibc;
+  inherit (crossPkgs) glibc;
+  inherit (crossPkgs.gcc.cc) libgcc lib;
 in [
   {
     drv = glibc;
@@ -26,6 +26,16 @@ in [
     drv = libgcc;
     runtimeLayoutScript = ''
       for so in "$out"/lib/*.so*; do
+        [ -e "$so" ] || continue
+        mkdir -p "$stage/ardos/lib"
+        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
+      done
+    '';
+  }
+  {
+    drv = lib;
+    runtimeLayoutScript = ''
+      for so in "$out"/${crossPkgs.stdenv.hostPlatform.config}/lib/*.so*; do
         [ -e "$so" ] || continue
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
