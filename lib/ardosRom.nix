@@ -1,1 +1,0 @@
-{buildPkgs, ...}: buildPkgs.bash

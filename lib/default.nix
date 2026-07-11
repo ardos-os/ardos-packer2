@@ -6,8 +6,8 @@
 #   lib/host/         Stage 0 — host nixpkgs (for devShells, helper builds)
 #   lib/toolchain/    Stage 1 — cross-compilation toolchain (crossPkgs)
 #   lib/builder/      Stage 2 — per-package builder (mkArdosDerivation)
-#   lib/sysroot/      Stage 3 — package merge (Milestone 3, not yet implemented)
-#   lib/rom/          Stage 4 — ROM / squashfs assembly (Milestone 3, not yet implemented)
+#   lib/sysroot/      Stage 3 — package merge
+#   lib/rom/          Stage 4 — ROM / squashfs assembly
 #
 # External consumers (e.g. flake.nix) only ever call `init` here. They should
 # not import from the per-stage directories directly.
@@ -79,17 +79,7 @@ in rec {
 
       sysroot = sysrootLib.mkSysroot;
 
-      rom = {
-        sysroot,
-        name ? "ardos-rom",
-      }:
-        buildPkgs.runCommand "${name}.squashfs" {
-          nativeBuildInputs = [
-            buildPkgs.squashfsTools
-          ];
-        } ''
-          mksquashfs "${sysroot}" "$out" -noappend -all-root -no-progress
-        '';
+      rom = import ./rom {inherit buildPkgs;};
       setExternalMappings = mappings: init (args // {externalMappings = mappings;});
       setGlibcPlugins = plugins: init (args // {glibcPlugins = plugins;});
       setToolchainConfig = config: init (args // {toolchainConfig = config;});
