@@ -142,11 +142,17 @@ jobs:
           nix develop --command just test ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}
 
   run-flake-check:
-    name: Run `nix flake check`
+    name: Run `nix flake check` on ${{ matrix.arch.triple }}
+    runs-on: ${{ matrix.arch.runner }}
     needs: build-checks
-    runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
       fail-fast: false
+      matrix:
+        arch:
+          - triple: aarch64
+            runner: blacksmith-16vcpu-ubuntu-2404-arm
+          - triple: x86_64
+            runner: blacksmith-16vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v7
