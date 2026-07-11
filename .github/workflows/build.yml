@@ -7,8 +7,54 @@ on:
     branches: [main]
 
 jobs:
-  ardos-cross-matrix:
+  # Stage 1: Build stdenv first to warm the Nix store cache.
+  # All subsequent jobs depend on this, so they find stdenv in Cachix
+  # instead of rebuilding it from scratch.
+  stdenv:
+    name: stdenv (${{ matrix.build.arch }} -> ${{ matrix.target_triple }})
+    runs-on: ${{ matrix.build.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - runner: ubuntu-24.04
+            arch: x86_64
+            extra_platforms: x86_64-linux aarch64-linux riscv64-linux
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            extra_platforms: aarch64-linux x86_64-linux riscv64-linux
+        target_triple:
+          - x86_64
+          - aarch64
+          - riscv64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.10.7
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            extra-substituters = https://ardos-os.cachix.org
+            extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
+            experimental-features = nix-command flakes
+            extra-platforms = ${{ matrix.build.extra_platforms }}
+
+      - name: Push build outputs to Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: ardos-os
+          authToken: '${{ secrets.CACHIX_TOKEN }}'
+
+      - name: Build stdenv
+        run: |
+          nix develop --command just build pkg stdenv ${{ matrix.build.arch }} ${{ matrix.target_triple }}
+
+  # Stage 2: Build remaining packages (stdenv is already cached).
+  packages:
     name: Build ${{ matrix.package }} (${{ matrix.build.arch }} -> ${{ matrix.target_triple }})
+    needs: stdenv
     runs-on: ${{ matrix.build.runner }}
     strategy:
       fail-fast: false
@@ -25,11 +71,9 @@ jobs:
           - aarch64
           - riscv64
         package:
-          - stdenv
           - hellolibrary
           - hello
           - ardos-rom
-
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -54,8 +98,10 @@ jobs:
         run: |
           nix develop --command just build pkg ${{ matrix.package }} ${{ matrix.build.arch }} ${{ matrix.target_triple }}
 
+  # Stage 3: Run checks (packages are already cached).
   checks:
     name: Check `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
+    needs: packages
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
