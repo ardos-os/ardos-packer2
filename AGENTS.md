@@ -1,46 +1,86 @@
-### Requisitos do `ardos-packer2`
+### Requirements of `ardos-packer2`
 
-O `ardos-packer2` é um **gerador declarativo e reproduzível de ROMs do Ardos OS**, construído sobre o sistema de derivations do Nix, aproveitando o seu motor de builds, isolamento, cache e paralelismo, mas **sem depender do modelo de runtime do Nix**.
+`ardos-packer2` is a **declarative and reproducible ROM generator for Ardos OS**, built on top of Nix's derivation system, leveraging its build engine, isolation, caching, and parallelism, but **without depending on Nix's runtime model**.
 
-É uma reescrita do projeto original [ardos-packer](https.//github.com/ardos-os/ardos-packer), originalmente feito em Rust.
+It is a rewrite of the original [ardos-packer](https://github.com/ardos-os/ardos-packer) project, originally written in Rust.
 
-Os requisitos principais são:
+The main requirements are:
 
-- Usar **apenas derivations do Nix** como unidade de build.
-- Aproveitar o **sandbox**, **grafo de dependências**, **cache local/remota** e **builds incrementais** do Nix.
-- Gerar uma **ROM (`.squashfs`) com a estrutura de filesystem do ardos os (versão modificada do FHS)**, sem `/nix/store`.
-- Tratar o **Ardos como uma plataforma/target própria** (ex.: `x86_64-*-ardos-*`), separada do Linux GNU convencional.
-- Construir um **`stdenv`** que reutiliza a infraestrutura do `stdenv` do Nix, mas adapta o processo de compilação ao runtime do Ardos.
-- Durante o **build**, os compiladores só podem ver dependências declaradas na `/nix/store`, garantindo isolamento total.
-- Em **runtime**, os binários devem procurar bibliotecas apenas nos caminhos finais do Ardos, sem depender da `/nix/store` nem de `patchelf`.
-- Cada derivation deve declarar o seu **layout de instalação em runtime** (onde os seus ficheiros existirão na ROM), sendo essa a única fonte de verdade. Os consumidores nunca assumem caminhos como `/usr/lib` ou `/ardos/lib`.
-- O linker deve obter automaticamente os caminhos de runtime a partir das dependências declaradas, evitando configurações globais e problemas de "split brain".
-- O gerador da ROM deve calcular automaticamente o **closure transitivo** das dependências e incluir todos os ficheiros necessários, sem que o utilizador tenha de listar manualmente dependências indiretas.
-- O kernel, bootloader, imagem de disco, ROM e scripts de arranque da VM devem ser **artefactos independentes**, cada um representado por derivations próprias.
-- O sistema deve permitir **cross-compilation** para outras arquiteturas (como ARM64) apenas alterando a plataforma alvo, reutilizando a mesma infraestrutura.
-- O objetivo é proporcionar uma **excelente experiência de desenvolvimento**, em que um programador que altere apenas um componente do Ardos recompila apenas esse componente e os artefactos que dele dependem, enquanto todo o restante é obtido da cache do Nix.
+- Use **only Nix derivations** as the build unit.
+- Leverage Nix's **sandbox**, **dependency graph**, **local/remote cache**, and **incremental builds**.
+- Generate a **ROM (`.squashfs`) with the Ardos OS filesystem structure (modified FHS)**, without `/nix/store`.
+- Treat **Ardos as its own platform/target** (e.g., `x86_64-*-ardos-*`), separate from conventional Linux GNU.
+- Build a **`stdenv`** that reuses Nix's `stdenv` infrastructure but adapts the compilation process to the Ardos runtime.
+- During **build**, compilers can only see dependencies declared in `/nix/store`, ensuring total isolation.
+- At **runtime**, binaries must look for libraries only in the final Ardos paths, without depending on `/nix/store` or `patchelf`.
+- Each derivation must declare its **runtime installation layout** (where its files will exist in the ROM), which is the single source of truth. Consumers never assume paths like `/usr/lib` or `/ardos/lib`.
+- The linker must automatically obtain runtime paths from declared dependencies, avoiding global configurations and "split brain" issues.
+- The ROM generator must automatically compute the **transitive closure** of dependencies and include all necessary files, without the user having to manually list indirect dependencies.
+- The kernel, bootloader, disk image, ROM, and VM boot scripts must be **independent artifacts**, each represented by their own derivations.
+- The system must support **cross-compilation** for other architectures (such as ARM64) simply by changing the target platform, reusing the same infrastructure.
+- The goal is to provide an **excellent development experience**, where a developer who changes only one Ardos component recompiles only that component and the artifacts that depend on it, while everything else is obtained from the Nix cache.
 
-Para saber mais detalhes técnicos sobre o projeto, dá uma olhada primeiro no README.md do projeto e depois vê o código do projeto para esclarecer dúvidas mais especificas.
+For more technical details about the project, first take a look at the project's README.md and then examine the project's code to clarify more specific questions.
 
-## O teu modo de trabalho
+## Your mode of work
 
-Seu modo de trabalho é ser minimalista e evitar trabalho desnecessário. Não reinvente a roda. Analise o contexto existente no Nixpkgs e no nosso código, identifique as abstrações já presentes e proponha sempre a menor alteração arquitetônica possível. Itere sobre as suas alterações até que você consiga encontrar
-a maneira canónica de se fazer algo.
+Your mode of work is to be minimalist and avoid unnecessary work. Don't reinvent the wheel. Analyze the existing context in Nixpkgs and our code, identify the abstractions already present, and always propose the smallest architectural change possible. Iterate on your changes until you find the canonical way to do something.
 
-Além disso, otimiza sempre o código para tempo de build e cache hits. Evita desencadear rebuilds colossais desnecessários em casos onde os patches aplicados não geram resultados diferentes na saída.
+Also, always optimize the code for build time and cache hits. Avoid triggering colossal unnecessary rebuilds in cases where the applied patches don't produce different output.
 
-## Fluxo de desenvolvimento
+## Architecture
 
-Nós usamos `just` como task runner. A configuração das tarefas é separado em ficheiros e subcomandos por categoria para manter tudo organizado e fácil de memorizar os comandos:
+The project is organized into pipeline stages, each with its own directory under `lib/`:
+
 ```
-[tiago@tiago-hp ardos-packer2]$ just
+lib/host/         Stage 0 — host nixpkgs (for devShells, helper builds)
+lib/toolchain/    Stage 1 — cross-compilation toolchain (crossPkgs)
+lib/builder/      Stage 2 — per-package builder (mkArdosDerivation)
+lib/sysroot/      Stage 3 — package merge (sysroot materialization)
+lib/rom/          Stage 4 — ROM / squashfs assembly
+```
+
+External consumers (e.g. `flake.nix`) only call `init` from `lib/default.nix`. They should not import from the per-stage directories directly.
+
+### Key APIs
+
+- `ap2.init` — Initializes a build context for a target platform. Accepts `targetPlatform`, `buildSystem`, `externalMappings`, `toolchainConfig`, and `glibcPlugins`.
+- `mkArdosDerivation` — Builds a package with Ardos metadata (runtime layout, symlink mappings).
+- `mkRuntimeTree` — Generates a derivation containing a projection of the package's runtime filesystem.
+- `wrapDerivation` — Wraps an existing derivation with Ardos runtime mappings.
+- `callPackage` — Like `nixpkgs.callPackage` but with access to Ardos-specific helpers.
+- `sysroot` — Constructs the final sysroot from package runtime trees.
+- `rom` — Assembles the sysroot into a `.squashfs` ROM image.
+
+### Builder hooks
+
+The builder subsystem (`lib/builder/hooks/`) implements linker and shebang translation:
+
+- `ld-wrapper.sh` — Stable stub (avoids unnecessary rebuilds).
+- `ld-wrapper-impl.sh` — Mutable implementation of the linker wrapper.
+- `ardos_ld_translate.rs` — Host-side Rust script that translates `-rpath` flags to Ardos runtime paths.
+
+Setup hooks (`lib/builder/setup/`):
+
+- `ardos-setup.sh` — Entry point for the setup hook.
+- `early-init.rs`, `populate-map.rs`, `generate-layout.rs`, `translate-shebangs.rs` — Helper tools.
+
+### Plugins
+
+`lib/plugins/` contains optional plugins such as `nss-files.nix` for glibc NSS support.
+
+## Development workflow
+
+We use `just` as the task runner. Task configuration is split into files and subcommands by category to keep everything organized and make commands easy to remember:
+```
+[tiano@tiago-hp ardos-packer2]$ just
 Available recipes:
     default              # Show all available recipes including submodules
     env target="default" # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
     start-ai             # Starts local ollama server and ollama client in a preset zellij layout
     build:
         check type name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
-        pkg name arch="x86_64" target=arch   # Build an package exported from the flake outputs by name
+        pkg name arch="x86_64" target=arch        # Build an package exported from the flake outputs by name
 
     fmt:
         md       # [alias: markdown]
@@ -49,8 +89,8 @@ Available recipes:
         sh       # [aliases: script, shell]
 ```
 
-O tipo (`type`) dos checks pode ser `e2e`, `integration` ou `unit`.
-Documentação do test runner em `tests/default.nix`:
+The check `type` can be `e2e`, `integration`, or `unit`.
+Test runner documentation in `tests/default.nix`:
 ```nix
   ##########################################################################
   ## Unit runner

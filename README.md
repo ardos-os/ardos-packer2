@@ -102,7 +102,7 @@ The injector + implementation setup is needed so changes to the implementation d
 Executable shell scripts in Nix typically have shebangs pointing to `/nix/store/...-bash/bin/bash`.
 
 To run natively on Ardos, these shebangs must point to target packages that have runtime mappings (e.g., `/ardos/bin/bash`).
-Our setup hook intercepts and parses all shebangs in the `postFixup` phase of target packages. Using the aggregated `$ARDOS_RUNTIME_MAP`, it matches the Nix store hash of the interpreter against declared layouts and rewrites the shebang path to point to the Ardos location (e.g., `#!/nix/store/.../bin/bash` ➔ `#!/ardos/bin/bash`).
+Our setup hook intercepts and parses all shebangs in the `postFixup` phase of target packages. Using the aggregated `$ARDOS_RUNTIME_MAP`, it matches the Nix store hash of the interpreter against declared layouts and rewrites the shebang path to point to the Ardos location (e.g., `#!/nix/store/.../bin/bash` → `#!/ardos/bin/bash`).
 
 ______________________________________________________________________
 
@@ -116,8 +116,8 @@ Available recipes:
     env target="default" # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
     start-ai             # Starts local ollama server and ollama client in a preset zellij layout
     build:
-        check name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
-        pkg name arch="x86_64" target=arch   # Build an package exported from the flake outputs by name
+        check type name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
+        pkg name arch="x86_64" target=arch        # Build an package exported from the flake outputs by name
 
     fmt:
         md       # [alias: markdown]
