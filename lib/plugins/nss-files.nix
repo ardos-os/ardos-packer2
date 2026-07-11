@@ -25,6 +25,10 @@ runCommand "glibc-nss-files" {} ''
     [ -e "$f" ] || continue
     cp -a "$f" $out/lib/
   done
+  if ! ls -1 "$out/lib/"libnss_files.so* >/dev/null 2>&1; then
+    echo "error: nss-files plugin found no libnss_files.so in ${glibc}/lib/" >&2
+    exit 1
+  fi
 '' // {
   passthru.glibcPlugin = {
     name = "nss-files";

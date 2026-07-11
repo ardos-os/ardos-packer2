@@ -66,6 +66,7 @@ jobs:
           - [ e2e minimal ]
           - [ e2e nss-plugins ]
           - [ e2e toolchain-config ]
+          - [ e2e combined ]
         target_triple:
           - x86_64
           - aarch64

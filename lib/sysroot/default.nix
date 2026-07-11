@@ -17,7 +17,10 @@
     else "lib";
 
   # --- glibc plugin / nsswitch.conf generation ---
-  pluginDecls = map (p: p.passthru.glibcPlugin) glibcPlugins;
+  pluginDecls = map (p:
+    if p ? passthru.glibcPlugin then p.passthru.glibcPlugin
+    else throw "glibcPlugin: ${p.name or "<unknown>"} is missing passthru.glibcPlugin"
+  ) glibcPlugins;
 
   # Merge nssDatabases from all plugins: concatenate module lists per database.
   mergedNssDatabases = lib.foldl' (acc: decl:
@@ -208,9 +211,7 @@ in {
           '') glibcPlugins}
 
           mkdir -p "$out/${glibcEtcDir}"
-          cat > "$out/${glibcEtcDir}/nsswitch.conf" <<'ARDOS_NSS'
-${nsswitchConf}
-ARDOS_NSS
+          cat > "$out/${glibcEtcDir}/nsswitch.conf" "${nsswitchConf}"
         fi
       ''}
     '';

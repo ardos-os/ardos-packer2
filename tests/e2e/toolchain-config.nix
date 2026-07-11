@@ -24,7 +24,8 @@
       aarch64-linux-ardos = "ld-linux-aarch64.so.1";
       riscv64-linux-ardos = "ld-linux-riscv64-lp64d.so.1";
     };
-    ldName = linkerNames.${ctx.targetTriple};
+    ldName = linkerNames.${ctx.targetTriple} or (throw
+      "toolchain-config e2e test: no linker name defined for ${ctx.targetTriple}");
   in ctx.buildPkgs.runCommand "e2e-toolchain-config-check" {} ''
     ld="${sysroot}/ardos/lib/${ldName}"
     if [ ! -f "$ld" ]; then

@@ -1,8 +1,9 @@
 # Core glibc overlay — strips Nix runtime artifacts from nixpkgs glibc.
 #
 # Produces a minimal, distro-style glibc with no embedded /nix/store paths,
-# no NixOS search paths, and no NSS/locale plugins. Plugins are added
-# declaratively via glibcPlugins at the sysroot level.
+# no NixOS search paths, and no NSS/locale plugins in the default
+# nsswitch.conf.  NSS .so modules are still built by glibc; plugins
+# are added declaratively via glibcPlugins at the sysroot level.
 #
 # The overlay separates compile-time paths from install-time paths:
 # runtimePrefix controls the compiled-in PREFIX (--prefix) so binaries
@@ -46,15 +47,15 @@ if !isTarget then {} else {
 
     # --- makeFlags filtering ---
     # Remove flags that embed Nix store paths into compiled binaries.
-    keptMakeFlags = lib.filter (f:
-      builtins.isString f && !(
-        # user-defined-trusted-dirs embeds libgcc nix store path
-        lib.hasPrefix "user-defined-trusted-dirs=" f
-        # BUILD_LDFLAGS=-Wl,-rpath,... bakes a nix store rpath into
-        # the dynamic linker as a system search path
-        || lib.hasPrefix "BUILD_LDFLAGS=" f
-      )
-    ) (old.makeFlags or []);
+    # Flatten nested lists first — makeFlags can contain `listOf (either str (list str))`.
+    keptMakeFlags = let
+      flatFlags = lib.concatMap (f:
+        if builtins.isList f then f else [f]
+      ) (old.makeFlags or []);
+    in lib.filter (f:
+      !(lib.hasPrefix "user-defined-trusted-dirs=" f
+        || lib.hasPrefix "BUILD_LDFLAGS=" f)
+    ) flatFlags;
 
     # --- postPatch ---
     # Remove the LIBIDN2_SONAME substitution that bakes a store path into
@@ -135,7 +136,7 @@ if !isTarget then {} else {
     # libc.so.6 and ld-linux references are correct.
     postInstallFixup = lib.optionalString (runtimePrefix != null) ''
       if [ -f "$out/lib/libc.so" ]; then
-        sed -i "s|$out|${runtimePrefix}|g" "$out/lib/libc.so"
+        sed -i "\|$out|{s||${runtimePrefix}|g}" "$out/lib/libc.so"
       fi
     '';
 
