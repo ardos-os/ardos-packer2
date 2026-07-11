@@ -17,16 +17,15 @@
 {
   glibc,
   runCommand,
-  runtimePrefix ? "/lib"
 }:
 
 runCommand "glibc-nss-files" {} ''
   mkdir -p $out/lib
   for f in "${glibc}"/lib/libnss_files.so*; do
     [ -e "$f" ] || continue
-    cp -a "$f" $out${runtimePrefix}/
+    cp -a "$f" $out/lib/
   done
-  if ! ls -1 "$out${runtimePrefix}/"libnss_files.so* >/dev/null 2>&1; then
+  if ! ls -1 "$out/lib/"libnss_files.so* >/dev/null 2>&1; then
     echo "error: nss-files plugin found no libnss_files.so in ${glibc}/lib/" >&2
     exit 1
   fi

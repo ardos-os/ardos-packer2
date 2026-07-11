@@ -21,7 +21,6 @@
     (import ../../lib/plugins/nss-files.nix {
       glibc = crossPkgs.glibc;
       runCommand = crossPkgs.runCommand;
-      inherit (crossPkgs.toolchainConfig.glibc) runtimePrefix;
     })
   ];
 
