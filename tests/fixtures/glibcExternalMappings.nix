@@ -10,6 +10,10 @@
 crossPkgs: let
   inherit (crossPkgs) glibc;
   inherit (crossPkgs.stdenv.cc.cc) libgcc lib;
+  nssFiles = (import ../../lib/plugins/nss-files.nix {
+    glibc = crossPkgs.glibc;
+    runCommand = crossPkgs.runCommand;
+  });
 in [
   {
     drv = glibc;
@@ -17,6 +21,16 @@ in [
       for so in ${glibc}/lib/*.so*; do
         [ -e "$so" ] || continue
         case "$(basename "$so")" in libnss_*) continue ;; esac
+        mkdir -p "$stage/ardos/lib"
+        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
+      done
+    '';
+  }
+  {
+    drv = nssFiles;
+    runtimeLayoutScript = ''
+      for so in ${nssFiles}/lib/*.so*; do
+        [ -e "$so" ] || continue
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
       done
