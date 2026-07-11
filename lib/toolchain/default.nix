@@ -4,6 +4,7 @@
 # (e.g. x86_64-linux-ardos). Wires the overlay that:
 #
 #   * patches cross-binutils and glibc for the ardos ABI
+#   * strips Nix-specific runtime artifacts from glibc (via overlay/ardos-glibc.nix)
 #   * wraps the target stdenv so every Ardos package gets config.sub patched
 #     (without invalidating the toolchain itself) and the ardos-setup hook
 #   * injects the stable ld-wrapper stub into the cross bintools wrapper
@@ -11,12 +12,14 @@
 #
 # `host` is the patched host nixpkgs from Stage 0.
 # `builder` exposes `rustScript`, used here to compile ardos-setup-tool.
+# `toolchainConfig` carries toolchain-level concerns (e.g. glibc.runtimePrefix).
 {
   nixpkgs,
   targetPlatform,
   buildSystem,
   host,
   rustScript,
+  toolchainConfig ? {},
 }: let
   inherit (host) patchedNixpkgs;
 
@@ -129,9 +132,30 @@
       });
       clang = final.llvmPackages.clang;
 
-      glibc = prev.glibc.overrideAttrs (old: {
+      glibc = let
+        ardosGlibcOverlay = import ./overlay/ardos-glibc.nix {lib = nixpkgs.lib;};
+        glibcConfig = toolchainConfig.glibc or {};
+        overlay = ardosGlibcOverlay {
+          glibc = prev.glibc;
+          runtimePrefix = glibcConfig.runtimePrefix or null;
+        };
+      in (overlay final prev).glibc.overrideAttrs (old: {
         preConfigure = patchAutotoolsConfig (old.preConfigure or null);
       });
+
+      # glibc-nolibgcc is the bootstrap variant (libgcc=null) used to
+      # build libgcc.  Because `override` preserves `overrideAttrs`,
+      # glibc.override { libgcc = null; } inherits our --prefix/libdir
+      # and install_root overrides, which break its install (double-nested
+      # store paths) and would also break libgcc (wrong library paths).
+      # Pin it to the pre-overlay version so the bootstrap chain stays clean.
+      glibc-nolibgcc = prev.glibc.override { libgcc = null; };
+
+      # Redirect nixpkgs' libgcc (defined inline with glibc.override) to
+      # use the clean glibc-nolibgcc above instead of inheriting ours.
+      libgcc = prev.libgcc.override {
+        glibc = final.glibc-nolibgcc;
+      };
     }
     else {};
 in rec {

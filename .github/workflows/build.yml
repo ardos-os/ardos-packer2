@@ -55,7 +55,7 @@ jobs:
           nix develop --command just build pkg ${{ matrix.package }} ${{ matrix.build.arch }} ${{ matrix.target_triple }}
 
   checks:
-    name: Check `${{ matrix.test_name }}` (${{ matrix.target_triple }})
+    name: Check `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -63,6 +63,10 @@ jobs:
         test_name:
           - [ unit hello-binary ]
           - [ integration hello ]
+          - [ e2e minimal ]
+          - [ e2e nss-plugins ]
+          - [ e2e toolchain-config ]
+          - [ e2e combined ]
         target_triple:
           - x86_64
           - aarch64
@@ -87,6 +91,6 @@ jobs:
           name: ardos-os
           authToken: '${{ secrets.CACHIX_TOKEN }}'
 
-      - name: Run ${{ matrix.test_name }} test
+      - name: Run ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }} test
         run: |
           nix develop --command just test ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}
