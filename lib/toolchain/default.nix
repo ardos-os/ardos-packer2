@@ -155,8 +155,8 @@ in rec {
 
   toolchain = {
     cc = crossPkgs.stdenv.cc;
-    binutils = crossPkgs.bintools;
-    glibc = crossPkgs.glibc;
-    bash = buildPkgs.bash;
+    binutils = crossPkgs.pkgsBuildTarget.bintools;
+    glibc = crossPkgs.pkgsBuildTarget.glibc;
+    bash = buildPkgs.pkgsBuildTarget.bash;
   };
 }

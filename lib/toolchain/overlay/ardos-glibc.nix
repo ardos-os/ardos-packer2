@@ -19,7 +19,7 @@
 final: prev:
 
 let
-  isTarget = prev.stdenv.hostPlatform.config == prev.stdenv.targetPlatform.config;
+  isTarget = prev.stdenv.hostPlatform.vendor == "ardos";
 
   # Extract a sortable name from a patch value (store path, path, or attrset).
   patchName = p:
@@ -106,6 +106,7 @@ if !isTarget then {} else {
       "libdir=$(out)/lib"
       "slibdir=$(out)/lib"
       "rtlddir=${runtimePrefix}/lib"
+      "libc_cv_slibdir=${runtimePrefix}/lib"
       # Runtime library search path for binaries (RPATH).
       "default-rpath=${runtimePrefix}/lib"
       # inst_* redirect install destinations for libraries.
@@ -125,7 +126,6 @@ if !isTarget then {} else {
       "mandir=$(out)/share/man"
       "infodir=$(out)/share/info"
     ];
-
   in {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlags;
