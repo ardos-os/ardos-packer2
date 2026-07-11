@@ -17,10 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          -             runner: blacksmith-16vcpu-ubuntu-2404
+          - runner: blacksmith-16vcpu-ubuntu-2404
             arch: x86_64
             extra_platforms: x86_64-linux aarch64-linux riscv64-linux
-          -             runner: blacksmith-16vcpu-ubuntu-2404-arm
+          - runner: blacksmith-16vcpu-ubuntu-2404-arm
             arch: aarch64
             extra_platforms: aarch64-linux x86_64-linux riscv64-linux
         target_triple:
@@ -60,10 +60,10 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          -             runner: blacksmith-8vcpu-ubuntu-2404
+          - runner: blacksmith-8vcpu-ubuntu-2404
             arch: x86_64
             extra_platforms: x86_64-linux aarch64-linux riscv64-linux
-          -             runner: blacksmith-8vcpu-ubuntu-2404-arm
+          - runner: blacksmith-8vcpu-ubuntu-2404-arm
             arch: aarch64
             extra_platforms: aarch64-linux x86_64-linux riscv64-linux
         target_triple:
