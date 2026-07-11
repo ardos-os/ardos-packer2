@@ -9,7 +9,7 @@
 # They are provided declaratively via glibcPlugins instead.
 crossPkgs: let
   inherit (crossPkgs) glibc;
-  inherit (crossPkgs.gcc.cc) libgcc lib;
+  inherit (crossPkgs.stdenv.cc.cc) libgcc lib;
 in [
   {
     drv = glibc;
