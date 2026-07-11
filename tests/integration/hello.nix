@@ -4,7 +4,7 @@
 
 {
 
-  externalMappings = ctx: import ../fixtures/glibcExternalMappings.nix { runtimePrefix = null; } ctx.ap2Instance.crossPkgs;
+  externalMappings = ctx: import ../fixtures/glibcExternalMappings.nix ctx.ap2Instance.crossPkgs;
   build = {lib, ...}@ctx:
   {
     name = "hello";

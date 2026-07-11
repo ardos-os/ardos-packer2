@@ -4,9 +4,11 @@
 # no NixOS search paths, and no NSS/locale plugins. Plugins are added
 # declaratively via glibcPlugins at the sysroot level.
 #
-# The overlay is layout-agnostic: runtimePrefix controls the compiled-in
-# PREFIX for ld.so.cache/ld.so.conf resolution, but does not dictate
-# where files are placed — that is the caller's responsibility.
+# The overlay separates compile-time paths from install-time paths:
+# runtimePrefix controls the compiled-in PREFIX (--prefix) so binaries
+# reference /ardos/lib at runtime, while inst_* and libdir overrides
+# redirect make install to Nix store outputs ($out/lib, etc.).
+# A postInstall sed fixup restores runtime paths in the libc.so linker script.
 {lib}: {
   glibc,
   runtimePrefix ? null,
@@ -42,10 +44,16 @@ if !isTarget then {} else {
       !builtins.elem (patchName p) nixPatchNames
     ) (old.patches or []);
 
-    # --- makeFlags ---
-    # Remove user-defined-trusted-dirs (embeds libgcc nix store path).
+    # --- makeFlags filtering ---
+    # Remove flags that embed Nix store paths into compiled binaries.
     keptMakeFlags = lib.filter (f:
-      !(builtins.isString f && lib.hasPrefix "user-defined-trusted-dirs=" f)
+      builtins.isString f && !(
+        # user-defined-trusted-dirs embeds libgcc nix store path
+        lib.hasPrefix "user-defined-trusted-dirs=" f
+        # BUILD_LDFLAGS=-Wl,-rpath,... bakes a nix store rpath into
+        # the dynamic linker as a system search path
+        || lib.hasPrefix "BUILD_LDFLAGS=" f
+      )
     ) (old.makeFlags or []);
 
     # --- postPatch ---
@@ -63,26 +71,81 @@ if !isTarget then {} else {
         lib.concatStringsSep "\n" filtered;
 
     # --- configureFlags ---
-    # --libdir must come AFTER --prefix so it overrides the --libdir that
-    # multiple-outputs.sh prepends (absolute store path).  Autoconf uses
-    # the last --libdir, so our relative value wins and gets baked into
-    # the Makefile as $(libdir) = ${runtimePrefix}/lib.
+    # --prefix sets the compiled-in PREFIX.  With --prefix=/ardos, the
+    # default --libdir=${exec_prefix}/lib resolves to /ardos/lib — the
+    # correct runtime path baked into binaries (linker scripts, ld-linux,
+    # etc.).  We do NOT pass an explicit --libdir: it would be redundant
+    # and conflicts with the install-time redirection below.
     prefixFlags = lib.optionals (runtimePrefix != null) [
       "--prefix=${runtimePrefix}"
-      "--libdir=${runtimePrefix}/lib"
     ];
+
+    # --- install-time path redirection ---
+    # The nixpkgs multi-output hook overrides libdir to $lib/lib (a nix
+    # store path).  We must redirect it to $out/lib so that ALL install
+    # targets (including iconvdata, nss, login which use $(libdir)
+    # directly instead of $(inst_libdir)) write into the sandbox.
+    #
+    # slibdir and rtlddir are NOT overridden: they remain /ardos/lib
+    # so the libc.so linker script content has correct runtime paths.
+    #
+    # The libc.so linker script references $(libdir)/libc_nonshared.a
+    # which will be $out/lib/libc_nonshared.a.  postInstall fixes this
+    # with sed to restore the /ardos/lib runtime path.
+    #
+    # NOTE: sysconfdir is NOT overridden — it must stay as /etc
+    # (the configure-time default) so the binary doesn't bake in a
+    # nix store path for ld.so.cache.  common.nix's installFlags
+    # handles the install destination.
+    installRedirects = lib.optionals (runtimePrefix != null) [
+      # libdir goes to $out so all sub-Makefiles install correctly.
+      "libdir=$(out)/lib"
+      # slibdir and rtlddir stay as /ardos/lib for linker script content.
+      "slibdir=${runtimePrefix}/lib"
+      "rtlddir=${runtimePrefix}/lib"
+      # Override default-rpath: Makeconfig computes it as
+      # $(slibdir):$(libdir) when they differ.  Since libdir is $out/lib
+      # (for install) and slibdir is /ardos/lib, this would bake both
+      # paths into trusted-dirs.h → ld-linux system search paths.
+      # Override to just the runtime prefix.
+      "default-rpath=${runtimePrefix}/lib"
+      # inst_* redirect install destinations for libraries.
+      # inst_includedir is NOT overridden: the nixpkgs multi-output
+      # hook sets --includedir=$dev/include at configure time.
+      "inst_libdir=$(out)/lib"
+      "inst_slibdir=$(out)/lib"
+      "inst_rtlddir=$(out)/lib"
+      "inst_libexecdir=$(out)/libexec"
+      # Base path variables used directly by nss/Makefile,
+      # localedata/Makefile and other install targets.
+      "datarootdir=$(out)/share"
+      "datadir=$(out)/share"
+      "localedir=$(out)/lib/locale"
+      "localstatedir=$(out)/var"
+      "sharedstatedir=$(out)/com"
+      "mandir=$(out)/share/man"
+      "infodir=$(out)/share/info"
+    ];
+
+    # --- postInstall ---
+    # The libc.so linker script references $(libdir)/libc_nonshared.a
+    # with the nix store path ($out/lib).  We sed it back to the runtime
+    # prefix so the linker script is self-contained in the ROM.
+    # slibdir and rtlddir were already set to the runtime prefix so
+    # libc.so.6 and ld-linux references are correct.
+    postInstallFixup = lib.optionalString (runtimePrefix != null) ''
+      if [ -f "$out/lib/libc.so" ]; then
+        sed -i "s|$out|${runtimePrefix}|g" "$out/lib/libc.so"
+      fi
+    '';
 
   in {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlags;
-    makeFlags = keptMakeFlags;
-    # install_root redirects glibc's inst_* paths (inst_libdir =
-    # $(install_root)$(libdir)) into the Nix sandbox.  Because configure
-    # already set libdir to a relative path, inst_libdir resolves to
-    # $out/ardos/lib — no double-nesting.
-    installFlags = (old.installFlags or [])
-      ++ lib.optional (runtimePrefix != null) "install_root=$out";
+    makeFlags = keptMakeFlags ++ installRedirects;
+    installFlags = old.installFlags or [];
     postPatch = cleanedPostPatch;
+    postInstall = (old.postInstall or "") + postInstallFixup;
   });
 
 }

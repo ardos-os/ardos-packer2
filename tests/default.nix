@@ -280,9 +280,7 @@ mkIntegrationTest =
               toolchainConfig = spec.toolchainConfig or {};
               glibcPlugins = spec.glibcPlugins or [];
               externalMappings = spec.externalMappings or (
-                import ../tests/fixtures/glibcExternalMappings.nix {
-                  runtimePrefix = ((spec.toolchainConfig or {}).glibc or {}).runtimePrefix or null;
-                }
+                import ../tests/fixtures/glibcExternalMappings.nix
               );
             };
 
