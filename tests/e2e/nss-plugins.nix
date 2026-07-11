@@ -17,7 +17,7 @@
     };
   };
 
-  
+
   ## Include the NSS files plugin.
   glibcPlugins = crossPkgs: [
     (import ../../lib/plugins/nss-files.nix {
@@ -51,7 +51,7 @@
     fi
 
     # Verify libnss_files.so is present.
-    if [ ! -f "${sysroot}/ardos/lib/libnss_files.so" ]; then
+    if [ ! -f "${sysroot}/ardos/lib/libnss_files.so.2" ]; then
       echo "FAIL: libnss_files.so.2 not found in sysroot" >&2
       ${tree} ${sysroot}
       exit 1
