@@ -7,9 +7,10 @@
 #
 # The overlay separates compile-time paths from install-time paths:
 # runtimePrefix controls the compiled-in PREFIX (--prefix) so binaries
-# reference /ardos/lib at runtime, while inst_* and libdir overrides
-# redirect make install to Nix store outputs ($out/lib, etc.).
-# A postInstall sed fixup restores runtime paths in the libc.so linker script.
+# reference /ardos/lib at runtime, while libdir, slibdir, rtlddir and
+# inst_* overrides redirect make install to Nix store outputs.
+# The libc.so linker script uses $out/lib paths (build-time valid),
+# while default-rpath ensures binaries get /ardos/lib RPATH for runtime.
 {lib}: {
   glibc,
   runtimePrefix ? null,
@@ -74,9 +75,10 @@ if !isTarget then {} else {
     # --- configureFlags ---
     # --prefix sets the compiled-in PREFIX.  With --prefix=/ardos, the
     # default --libdir=${exec_prefix}/lib resolves to /ardos/lib — the
-    # correct runtime path baked into binaries (linker scripts, ld-linux,
-    # etc.).  We do NOT pass an explicit --libdir: it would be redundant
-    # and conflicts with the install-time redirection below.
+    # runtime search path compiled into the dynamic linker (ld-linux).
+    # We do NOT pass an explicit --libdir.  The build-time paths in
+    # libc.so and other linker scripts are controlled by slibdir/rtlddir
+    # make variables, which are overridden to $out/lib below.
     prefixFlags = lib.optionals (runtimePrefix != null) [
       "--prefix=${runtimePrefix}"
     ];
@@ -87,28 +89,24 @@ if !isTarget then {} else {
     # targets (including iconvdata, nss, login which use $(libdir)
     # directly instead of $(inst_libdir)) write into the sandbox.
     #
-    # slibdir and rtlddir are NOT overridden: they remain /ardos/lib
-    # so the libc.so linker script content has correct runtime paths.
-    #
-    # The libc.so linker script references $(libdir)/libc_nonshared.a
-    # which will be $out/lib/libc_nonshared.a.  postInstall fixes this
-    # with sed to restore the /ardos/lib runtime path.
+    # slibdir and rtlddir use $out/lib (not the runtime prefix) because
+    # they control the content of the libc.so LINKER SCRIPT, which is
+    # consumed by ld at link time, not by the dynamic linker at runtime.
+    # The paths in libc.so must be valid during the build.  Runtime
+    # library search paths are handled by default-rpath and the
+    # external runtime mappings in the sysroot.
     #
     # NOTE: sysconfdir is NOT overridden — it must stay as /etc
     # (the configure-time default) so the binary doesn't bake in a
     # nix store path for ld.so.cache.  common.nix's installFlags
     # handles the install destination.
     installRedirects = lib.optionals (runtimePrefix != null) [
-      # libdir goes to $out so all sub-Makefiles install correctly.
+      # All install destinations go to $out so everything writes
+      # into the Nix sandbox.
       "libdir=$(out)/lib"
-      # slibdir and rtlddir stay as /ardos/lib for linker script content.
-      "slibdir=${runtimePrefix}/lib"
-      "rtlddir=${runtimePrefix}/lib"
-      # Override default-rpath: Makeconfig computes it as
-      # $(slibdir):$(libdir) when they differ.  Since libdir is $out/lib
-      # (for install) and slibdir is /ardos/lib, this would bake both
-      # paths into trusted-dirs.h → ld-linux system search paths.
-      # Override to just the runtime prefix.
+      "slibdir=$(out)/lib"
+      "rtlddir=$(out)/lib"
+      # Runtime library search path for binaries (RPATH).
       "default-rpath=${runtimePrefix}/lib"
       # inst_* redirect install destinations for libraries.
       # inst_includedir is NOT overridden: the nixpkgs multi-output
@@ -128,25 +126,13 @@ if !isTarget then {} else {
       "infodir=$(out)/share/info"
     ];
 
-    # --- postInstall ---
-    # The libc.so linker script references $(libdir)/libc_nonshared.a
-    # with the nix store path ($out/lib).  We sed it back to the runtime
-    # prefix so the linker script is self-contained in the ROM.
-    # slibdir and rtlddir were already set to the runtime prefix so
-    # libc.so.6 and ld-linux references are correct.
-    postInstallFixup = lib.optionalString (runtimePrefix != null) ''
-      if [ -f "$out/lib/libc.so" ]; then
-        sed -i "\|$out|{s||${runtimePrefix}|g}" "$out/lib/libc.so"
-      fi
-    '';
-
   in {
     patches = finalPatches;
     configureFlags = (old.configureFlags or []) ++ prefixFlags;
     makeFlags = keptMakeFlags ++ installRedirects;
     installFlags = old.installFlags or [];
     postPatch = cleanedPostPatch;
-    postInstall = (old.postInstall or "") + postInstallFixup;
+    postInstall = old.postInstall or "";
   });
 
 }
