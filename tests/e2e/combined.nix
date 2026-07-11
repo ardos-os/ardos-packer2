@@ -21,6 +21,7 @@
     (import ../../lib/plugins/nss-files.nix {
       glibc = crossPkgs.glibc;
       runCommand = crossPkgs.runCommand;
+      inherit (crossPkgs.toolchainConfig.glibc) runtimePrefix;
     })
   ];
 
@@ -46,8 +47,9 @@
     fi
 
     # Verify libnss_files.so is at the runtime prefix lib path.
-    if [ ! -e "${sysroot}/ardos/lib/libnss_files.so" ]; then
-      echo "FAIL: libnss_files.so not found at /ardos/lib/libnss_files.so" >&2
+    if [ ! -f "${sysroot}/ardos/lib/libnss_files.so.2" ]; then
+      echo "FAIL: libnss_files.so.2 not found at /ardos/lib/libnss_files.so.2" >&2
+      ls -la ${sysroot}/ardos/lib
       exit 1
     fi
 

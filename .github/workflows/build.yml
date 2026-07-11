@@ -99,8 +99,8 @@ jobs:
           nix develop --command just build pkg ${{ matrix.package }} ${{ matrix.build.arch }} ${{ matrix.target_triple }}
 
   # Stage 3: Run checks (packages are already cached).
-  checks:
-    name: Check `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
+  build-checks:
+    name: Build test `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
     needs: packages
     runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
@@ -140,3 +140,26 @@ jobs:
       - name: Run ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }} test
         run: |
           nix develop --command just test ${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}
+
+  run-flake-check:
+    name: Run `nix flake check`
+    needs: build-checks
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.10.7
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            extra-substituters = https://ardos-os.cachix.org
+            extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
+            experimental-features = nix-command flakes
+            extra-platforms = x86_64-linux aarch64-linux riscv64-linux
+      - name: Run tests
+        run: |
+          nix flake check

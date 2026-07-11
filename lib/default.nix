@@ -46,7 +46,7 @@ in rec {
     glibcPluginsArg = args.glibcPlugins or [];
     glibcPlugins =
       if builtins.isFunction glibcPluginsArg
-      then glibcPluginsArg crossPkgs
+      then glibcPluginsArg (crossPkgs // { inherit toolchainConfig; })
       else glibcPluginsArg;
     builder = import ./builder {
       inherit buildPkgs crossPkgs externalMappings;
@@ -56,7 +56,8 @@ in rec {
     };
   in let
     instance = rec {
-      inherit buildPkgs crossPkgs;
+      inherit crossPkgs;
+      buildPkgs = toolchain.buildPkgs;
       inherit (builder) mkArdosDerivation mkRuntimeTree wrapDerivation;
 
       stdenv = crossPkgs.stdenv;
