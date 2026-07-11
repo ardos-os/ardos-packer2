@@ -20,9 +20,78 @@ Os requisitos principais são:
 - O sistema deve permitir **cross-compilation** para outras arquiteturas (como ARM64) apenas alterando a plataforma alvo, reutilizando a mesma infraestrutura.
 - O objetivo é proporcionar uma **excelente experiência de desenvolvimento**, em que um programador que altere apenas um componente do Ardos recompila apenas esse componente e os artefactos que dele dependem, enquanto todo o restante é obtido da cache do Nix.
 
+Para saber mais detalhes técnicos sobre o projeto, dá uma olhada primeiro no README.md do projeto e depois vê o código do projeto para esclarecer dúvidas mais especificas.
+
 ## O teu modo de trabalho
 
 Seu modo de trabalho é ser minimalista e evitar trabalho desnecessário. Não reinvente a roda. Analise o contexto existente no Nixpkgs e no nosso código, identifique as abstrações já presentes e proponha sempre a menor alteração arquitetônica possível. Itere sobre as suas alterações até que você consiga encontrar
 a maneira canónica de se fazer algo.
 
 Além disso, otimiza sempre o código para tempo de build e cache hits. Evita desencadear rebuilds colossais desnecessários em casos onde os patches aplicados não geram resultados diferentes na saída.
+
+## Fluxo de desenvolvimento
+
+Nós usamos `just` como task runner. A configuração das tarefas é separado em ficheiros e subcomandos por categoria para manter tudo organizado e fácil de memorizar os comandos:
+```
+[tiago@tiago-hp ardos-packer2]$ just
+Available recipes:
+    default              # Show all available recipes including submodules
+    env target="default" # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
+    start-ai             # Starts local ollama server and ollama client in a preset zellij layout
+    build:
+        check type name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
+        pkg name arch="x86_64" target=arch   # Build an package exported from the flake outputs by name
+
+    fmt:
+        md       # [alias: markdown]
+        nix      # Format all Nix files in the repository using alejandra
+        rs       # [alias: rust]
+        sh       # [aliases: script, shell]
+```
+
+O tipo (`type`) dos checks pode ser `e2e`, `integration` ou `unit`.
+Documentação do test runner em `tests/default.nix`:
+```nix
+  ##########################################################################
+  ## Unit runner
+  ##
+  ## Unit tests are scripts that validate the outputs come out right and are
+  ## ran in the context of the build system.
+  ##########################################################################
+[....]
+  ################################################################################
+  ## Integration runner
+  ## --------------------
+  ## 
+  ## Sometimes running scripts in the build system context is not enough to
+  ## validate something is working correctly and entering the OS environment
+  ## becomes necessary.
+  ## 
+  ## Integration tests become in handy because the test runner chroots
+  ## inside a sysroot with some packages you include and allows you to run
+  ## a command and assert its outcome.
+  ##
+  ## Since integration tests assume binaries are runnable from the build
+  ## system's cpu architecture, they are not runnable if the cpu of the system
+  ## running them doesn't match the target cpu the packages were compiled to.
+  ## 
+  ##   NOTE: This chroot is rootless similar to podman and is implemented
+  ##   using `proot`.
+  ## 
+  ################################################################################
+[....]
+  ################################################################################
+  ## End-to-end runner
+  ## -----------------
+  ##
+  ## E2E tests build complete ROM images from declarative configurations.
+  ## Each test exports a spec with optional packages, glibcPlugins,
+  ## toolchainConfig, and an optional check derivation.
+  ##
+  ## E2E tests are available as:
+  ##   nix flake check  — runs the optional check derivation
+  ##   nix build .#e2e-<name>-<target> — builds the ROM image
+  ##
+  ################################################################################
+[....]
+```
