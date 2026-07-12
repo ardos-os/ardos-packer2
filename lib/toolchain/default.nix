@@ -152,17 +152,23 @@
       fastCross = false;
     }).overrideAttrs (old: {
       postPatch = (old.postPatch or "") + ''
+        echo "=== ap2: injecting built-in Ardos target ==="
         TARGET_DIR=compiler/rustc_target/src/spec/targets
+        echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
         cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
     ${ardosTargetRs}
     RSEOF
 
-        # Register in the target list (before the first x86_64 entry).
+        echo "Registering ${ardosTargetCfg.targetTriple} in supported_targets!"
+        grep -n 'supported_targets!' compiler/rustc_target/src/spec/mod.rs | head -3
         sed -i '/^supported_targets! {$/a\    ("${ardosTargetCfg.targetTriple}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
+        echo "Verifying target entry:"
+        grep "${ardosTargetCfg.rustModule}" compiler/rustc_target/src/spec/mod.rs | head -3
 
-        # Stage0 (pre-built) doesn't know about our new target yet, so mark it
-        # as missing so the sanity check in bootstrap doesn't panic.
+        echo "Adding to STAGE0_MISSING_TARGETS"
         sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "${ardosTargetCfg.targetTriple}",' src/bootstrap/src/core/sanity.rs
+        echo "Verifying STAGE0_MISSING_TARGETS:"
+        grep "ardos" src/bootstrap/src/core/sanity.rs | head -3
       '';
     });
     ardosRustc = prev.rustc.override {
