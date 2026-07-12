@@ -104,16 +104,13 @@ ______________________________________________________________________
 
 ### Milestone 4 — Rust Toolchain Integration 🔲
 
-> Pre-compiled Rust standard library for Ardos as a Nix derivation.
-
-| Task | Status | Notes |
-|---|---|---|
-| Compile `rust-std-ardos` derivation from `rustPlatform.rust.rustcSrc` | 🔲 |  |
-| Caching dependency crate builds across packages/components written in rust | 🔲 |  |
-| Building rust projects with `rustPlatform` from nixpkgs should just work | 🔲 |  |
-| Similarly to the C compiler, rustc also needs to be a cross compiler to ardos and should compile effortlessly with the same experience as compiling to the host machine itself, no noisy derivations | 🔲 | |
-| Verify `cargo build --target x86_64-ardos-linux-gnu.json` works without `-Z build-std` | 🔲 | |
-| Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix` | ✅ Done | Already declared |
+Requirements:
+- Compile `rust-std` for ardos derivation from `rustPlatform.rust.rustcSrc` and inject it into the global rustc
+- Caching dependency crate builds across packages/components written in rust
+- Building rust projects with `rustPlatform` from nixpkgs should just work
+- Similarly to the C compiler, rustc also needs to be a cross compiler to ardos and should compile effortlessly with the same experience as compiling to the host - machine itself, no noisy derivations
+- Verify `cargo build --target x86_64-ardos-linux-gnu` just works without any special flags
+- Add `rustcTargetSpec` JSON to each supported CPU in `supportedCpus.nix`
 
 ______________________________________________________________________
 

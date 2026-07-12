@@ -12,11 +12,15 @@
     lib = nixpkgs.lib;
     ap2 = import ./lib;
     packages = import ./packages {inherit lib ap2 nixpkgs;};
+    probeRust = import ./tests/probe-rust.nix {inherit lib ap2 nixpkgs;};
   in {
     lib = ap2;
     testPackages = packages;
 
     checks = import ./tests {inherit lib ap2 nixpkgs packages;};
     devShells = import ./devShells {inherit lib ap2 nixpkgs;};
+
+    # Temporary: Rust toolchain probe
+    probe-rust = probeRust;
   };
 }

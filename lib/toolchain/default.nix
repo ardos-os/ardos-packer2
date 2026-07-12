@@ -70,6 +70,73 @@
   ardosOverlay = final: prev: let
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
+
+    # Build rustc with `x86_64-ardos-linux-gnu` as a built-in target (tier 3).
+    #
+    # The target is injected into the rustc source via postPatch.  With
+    # fastCross=false, stage0 (pre-built) compiles stage1 from the patched
+    # source; stage1 then builds std for Ardos.  No JSON specs, no unstable
+    # flags, no TOML injection hacks needed.
+    ardosRustcUnwrapped = (prev.rustc.unwrapped.override {
+      fastCross = false;
+    }).overrideAttrs (old: {
+      postPatch = (old.postPatch or "") + ''
+        # Add `x86_64-ardos-linux-gnu` as a built-in Rust target.
+        # Model: tier 3, linux-gnu ABI with Ardos vendor.
+        TARGET_DIR=compiler/rustc_target/src/spec/targets
+        cat > $TARGET_DIR/x86_64_ardos_linux_gnu.rs << 'RSEOF'
+    use crate::spec::{
+        Arch, Cc, LinkerFlavor, Lld, SanitizerSet, StackProbeType, Target,
+        TargetMetadata, base,
+    };
+
+    pub(crate) fn target() -> Target {
+        let mut base = base::linux_gnu::opts();
+        base.cpu = "x86-64".into();
+        base.plt_by_default = false;
+        base.max_atomic_width = Some(64);
+        base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
+        base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::Yes), &["-m64"]);
+        base.stack_probes = StackProbeType::Inline;
+        base.static_position_independent_executables = true;
+        base.supported_sanitizers = SanitizerSet::ADDRESS
+            | SanitizerSet::CFI
+            | SanitizerSet::KCFI
+            | SanitizerSet::DATAFLOW
+            | SanitizerSet::LEAK
+            | SanitizerSet::MEMORY
+            | SanitizerSet::SAFESTACK
+            | SanitizerSet::THREAD
+            | SanitizerSet::REALTIME;
+        base.supports_xray = true;
+        base.has_rpath = false;
+        base.vendor = "ardos".into();
+
+        Target {
+            llvm_target: "x86_64-unknown-linux-gnu".into(),
+            metadata: TargetMetadata {
+                description: Some("x86_64 Ardos OS".into()),
+                tier: Some(3),
+                host_tools: Some(false),
+                std: Some(true),
+            },
+            pointer_width: 64,
+            data_layout:
+                "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
+            arch: Arch::X86_64,
+            options: base,
+        }
+    }
+    RSEOF
+
+        # Register in the target list (before x86_64-unknown-linux-gnu).
+        sed -i '/^supported_targets! {$/a\    ("x86_64-ardos-linux-gnu", x86_64_ardos_linux_gnu),' compiler/rustc_target/src/spec/mod.rs
+      '';
+    });
+    ardosRustc = prev.rustc.override {
+      rustc-unwrapped = ardosRustcUnwrapped;
+      sysroot = null;
+    };
     ardosSetupHookDrv = let
       ardosEarlyInit = rustScript "ardos-setup-early-init" ../builder/setup/early-init.rs;
       ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos-setup-early-init";
@@ -95,6 +162,8 @@
         if isTarget
         then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
         else prev.stdenv;
+
+      rustc = ardosRustc;
 
       bintools =
         if isCrossTool
