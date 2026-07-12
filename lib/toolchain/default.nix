@@ -131,6 +131,10 @@
 
         # Register in the target list (before x86_64-unknown-linux-gnu).
         sed -i '/^supported_targets! {$/a\    ("x86_64-ardos-linux-gnu", x86_64_ardos_linux_gnu),' compiler/rustc_target/src/spec/mod.rs
+
+        # Stage0 (pre-built) doesn't know about our new target yet, so mark it
+        # as missing so the sanity check in bootstrap doesn't panic.
+        sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "x86_64-ardos-linux-gnu",' src/bootstrap/src/core/sanity.rs
       '';
     });
     ardosRustc = prev.rustc.override {
