@@ -21,6 +21,9 @@ in [
       for so in ${glibc}/lib/*.so*; do
         [ -e "$so" ] || continue
         case "$(basename "$so")" in libnss_*) continue ;; esac
+        # GNU ld scripts (e.g. libc.so, libm.so GROUP scripts) are linker
+        # inputs only and must never be materialized into the runtime ROM.
+        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
       done
@@ -31,6 +34,7 @@ in [
     runtimeLayoutScript = ''
       for so in ${nssFiles}/lib/*.so*; do
         [ -e "$so" ] || continue
+        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
       done
@@ -41,6 +45,7 @@ in [
     runtimeLayoutScript = ''
       for so in "$out"/lib/*.so*; do
         [ -e "$so" ] || continue
+        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
       done
@@ -51,6 +56,7 @@ in [
     runtimeLayoutScript = ''
       for so in "$out"/${crossPkgs.stdenv.hostPlatform.config}/lib/*.so*; do
         [ -e "$so" ] || continue
+        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
         mkdir -p "$stage/ardos/lib"
         ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
       done

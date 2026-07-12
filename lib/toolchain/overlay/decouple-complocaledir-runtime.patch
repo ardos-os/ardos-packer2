@@ -1,0 +1,34 @@
+diff --git a/locale/findlocale.c b/locale/findlocale.c
+index d6d83d1a..c01ec49c 100644
+--- a/locale/findlocale.c
++++ b/locale/findlocale.c
+@@ -55,7 +55,11 @@ struct __locale_data *const _nl_C[] attribute_hidden =
+    which are somehow addressed.  */
+ struct loaded_l10nfile *_nl_locale_file_list[__LC_LAST];
+ 
+-const char _nl_default_locale_path[] attribute_hidden = COMPLOCALEDIR;
++#ifndef COMPLOCALEDIR_RUNTIME
++#define COMPLOCALEDIR_RUNTIME COMPLOCALEDIR
++#endif
++
++const char _nl_default_locale_path[] attribute_hidden = COMPLOCALEDIR_RUNTIME;
+ 
+ /* Checks if the name is actually present, that is, not NULL and not
+    empty.  */
+diff --git a/locale/loadarchive.c b/locale/loadarchive.c
+index 01c99b01..d4826757 100644
+--- a/locale/loadarchive.c
++++ b/locale/loadarchive.c
+@@ -42,7 +42,11 @@
+ 
+ 
+ /* Name of the locale archive file.  */
+-static const char archfname[] = COMPLOCALEDIR "/locale-archive";
++#ifndef COMPLOCALEDIR_RUNTIME
++#define COMPLOCALEDIR_RUNTIME COMPLOCALEDIR
++#endif
++
++static const char archfname[] = COMPLOCALEDIR_RUNTIME "/locale-archive";
+ 
+ /* Size of initial mapping window, optimal if large enough to
+    cover the header plus the initial locale.  */

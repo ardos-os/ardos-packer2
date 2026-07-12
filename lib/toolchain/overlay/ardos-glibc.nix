@@ -55,6 +55,7 @@ in
           (old.patches or []))
         ++ lib.optionals (runtimePrefix != null) [
           ./decouple-rtlddir-from-libc-so.patch
+          ./decouple-complocaledir-runtime.patch
         ];
       # --- makeFlags filtering ---
       # Remove flags that embed Nix store paths into compiled binaries.
@@ -165,16 +166,43 @@ in
         # destination at $out.
         "libexecdir=${runtimePrefix}/libexec"
 
-        # complocaledir CANNOT be overridden to /ardos: localedata's
-        # build-one-locale rule writes the locale archive to $(complocaledir)
-        # directly (not inst_complocaledir), so pointing it at /ardos breaks
-        # install into the sandbox.  Instead we keep complocaledir at the
-        # install location ($(libdir)/locale = $out/lib/locale) and override
-        # only the COMPILED-IN default that libc bakes in via locale-CPPFLAGS
-        # (COMPLOCALEDIR / LOCALE_ALIAS_PATH).  localepath feeds
-        # CPPFLAGS-locale-programs (localedef's default source lookup); we
-        # point it at /ardos so the ROM's localedef is consistent.
-        "locale-CPPFLAGS=-DCOMPLOCALEDIR='\"${runtimePrefix}/lib/locale\"' -DLOCALE_ALIAS_PATH='\"${runtimePrefix}/lib/locale\"' -Iprograms"
+        # complocaledir / COMPLOCALEDIR is overloaded: localedef uses it as
+        # its BUILD-TIME output directory (localedef.c:516 writes
+        # output_prefix + COMPLOCALEDIR + /<locale>), so it must stay at the
+        # install location ($out/lib/locale) or install into the sandbox
+        # breaks.  libc's RUNTIME locale lookup (findlocale.c, loadarchive.c)
+        # also reads COMPLOCALEDIR, but those files are patched
+        # (decouple-complocaledir-runtime.patch) to use COMPLOCALEDIR_RUNTIME
+        # instead.  We set that macro to /ardos here via locale-CPPFLAGS, so
+        # the ROM's libc looks up locales under /ardos while localedef still
+        # installs to $out.
+        # nixpkgs joins makeFlags with spaces and the shell re-splits them,
+        # so each element must be a single space-free token.  We therefore
+        # set locale-CPPFLAGS once (overriding the makefile definition) and
+        # append the remaining flags with += so make never sees a stray -D
+        # option.  Single quotes wrap the inner double quotes exactly like
+        # the upstream definition, so the compiler receives
+        # -DCOMPLOCALEDIR_RUNTIME="/ardos/lib/locale".
+        # complocaledir / COMPLOCALEDIR is overloaded: localedef uses it as
+        # its BUILD-TIME output directory (localedef.c:516 writes
+        # output_prefix + COMPLOCALEDIR + /<locale>), so it must stay at the
+        # install location ($out/lib/locale) or install into the sandbox
+        # breaks.  libc's RUNTIME locale lookup (findlocale.c, loadarchive.c)
+        # also reads COMPLOCALEDIR, but those files are patched
+        # (decouple-complocaledir-runtime.patch) to use COMPLOCALEDIR_RUNTIME
+        # instead.  We keep COMPLOCALEDIR pointing at the install dir
+        # ($(complocaledir) = $out/lib/locale) and add COMPLOCALEDIR_RUNTIME
+        # = /ardos via locale-CPPFLAGS, so the ROM's libc looks up locales
+        # under /ardos while localedef still installs to $out.
+        # nixpkgs joins makeFlags with spaces and the shell re-splits them,
+        # so each element must be a single space-free token.  We therefore
+        # set locale-CPPFLAGS once (overriding the makefile definition) and
+        # append the remaining flags with += so make never sees a stray -D
+        # option.
+        "locale-CPPFLAGS=-DCOMPLOCALEDIR='\"$(complocaledir)\"'"
+        "locale-CPPFLAGS+=-DLOCALE_ALIAS_PATH='\"${runtimePrefix}/lib/locale\"'"
+        "locale-CPPFLAGS+=-DCOMPLOCALEDIR_RUNTIME='\"${runtimePrefix}/lib/locale\"'"
+        "locale-CPPFLAGS+=-Iprograms"
         "localepath=\"${runtimePrefix}/lib/locale:${runtimePrefix}/share/i18n\""
 
         # inst_* redirect install destinations for libraries.
