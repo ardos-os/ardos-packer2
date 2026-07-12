@@ -71,70 +71,98 @@
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
 
-    # Build rustc with `x86_64-ardos-linux-gnu` as a built-in target (tier 3).
-    #
-    # The target is injected into the rustc source via postPatch.  With
-    # fastCross=false, stage0 (pre-built) compiles stage1 from the patched
-    # source; stage1 then builds std for Ardos.  No JSON specs, no unstable
-    # flags, no TOML injection hacks needed.
+    # Architecture-specific settings for the built-in Rust target.
+    # Each entry maps a Nix CPU name (targetPlatform.cpu) to the values
+    # needed in the generated rustc_target target file.
+    archRustSettings = {
+      x86_64 = {
+        targetTriple = "x86_64-ardos-linux-gnu";
+        rustModule = "x86_64_ardos_linux_gnu";
+        llvmTarget = "x86_64-unknown-linux-gnu";
+        cpu = "x86-64";
+        maxAtomicWidth = 64;
+        archEnum = "Arch::X86_64";
+        dataLayout = ''"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"'';
+        preLinkArgs = ''
+          base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
+          base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::Yes), &["-m64"]);
+        '';
+        sanitizers = "SanitizerSet::ADDRESS | SanitizerSet::CFI | SanitizerSet::KCFI | SanitizerSet::DATAFLOW | SanitizerSet::LEAK | SanitizerSet::MEMORY | SanitizerSet::SAFESTACK | SanitizerSet::THREAD | SanitizerSet::REALTIME";
+        supportsXray = true;
+        pltByDefault = false;
+      };
+      aarch64 = {
+        targetTriple = "aarch64-ardos-linux-gnu";
+        rustModule = "aarch64_ardos_linux_gnu";
+        llvmTarget = "aarch64-unknown-linux-gnu";
+        cpu = "generic";
+        maxAtomicWidth = 128;
+        archEnum = "Arch::AArch64";
+        dataLayout = ''"e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"'';
+        preLinkArgs = "";
+        sanitizers = "SanitizerSet::ADDRESS | SanitizerSet::CFI | SanitizerSet::KCFI | SanitizerSet::LEAK | SanitizerSet::MEMORY | SanitizerSet::MEMTAG | SanitizerSet::THREAD | SanitizerSet::HWADDRESS | SanitizerSet::REALTIME";
+        supportsXray = true;
+        pltByDefault = true;
+      };
+    };
+
+    # Select settings for the current target CPU.
+    ardosTargetCpu = targetPlatform.cpu;
+    ardosTargetCfg = builtins.getAttr ardosTargetCpu archRustSettings;
+
+    # Build the Rust target source file content from the settings.
+    ardosTargetRs = ''
+      use crate::spec::{
+          Arch, Cc, LinkerFlavor, Lld, SanitizerSet, StackProbeType, Target,
+          TargetMetadata, base,
+      };
+
+      pub(crate) fn target() -> Target {
+          let mut base = base::linux_gnu::opts();
+          base.cpu = "${ardosTargetCfg.cpu}".into();
+          base.plt_by_default = ${if ardosTargetCfg.pltByDefault then "true" else "false"};
+          base.max_atomic_width = Some(${toString ardosTargetCfg.maxAtomicWidth});
+          base.stack_probes = StackProbeType::Inline;
+          base.static_position_independent_executables = true;
+          base.supported_sanitizers = ${ardosTargetCfg.sanitizers};
+          base.supports_xray = ${if ardosTargetCfg.supportsXray then "true" else "false"};
+          base.has_rpath = false;
+          base.vendor = "ardos".into();
+          ${ardosTargetCfg.preLinkArgs}
+          Target {
+              llvm_target: "${ardosTargetCfg.llvmTarget}".into(),
+              metadata: TargetMetadata {
+                  description: Some("${ardosTargetCpu} Ardos OS".into()),
+                  tier: Some(3),
+                  host_tools: Some(false),
+                  std: Some(true),
+              },
+              pointer_width: 64,
+              data_layout: ${ardosTargetCfg.dataLayout}.into(),
+              arch: ${ardosTargetCfg.archEnum},
+              options: base,
+          }
+      }
+    '';
+
+    # Build rustc with the Ardos target as a built-in (tier 3).
+    # With fastCross=false, stage0 (pre-built) compiles stage1 from the
+    # patched source; stage1 then builds std for Ardos.
     ardosRustcUnwrapped = (prev.rustc.unwrapped.override {
       fastCross = false;
     }).overrideAttrs (old: {
       postPatch = (old.postPatch or "") + ''
-        # Add `x86_64-ardos-linux-gnu` as a built-in Rust target.
-        # Model: tier 3, linux-gnu ABI with Ardos vendor.
         TARGET_DIR=compiler/rustc_target/src/spec/targets
-        cat > $TARGET_DIR/x86_64_ardos_linux_gnu.rs << 'RSEOF'
-    use crate::spec::{
-        Arch, Cc, LinkerFlavor, Lld, SanitizerSet, StackProbeType, Target,
-        TargetMetadata, base,
-    };
-
-    pub(crate) fn target() -> Target {
-        let mut base = base::linux_gnu::opts();
-        base.cpu = "x86-64".into();
-        base.plt_by_default = false;
-        base.max_atomic_width = Some(64);
-        base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
-        base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::Yes), &["-m64"]);
-        base.stack_probes = StackProbeType::Inline;
-        base.static_position_independent_executables = true;
-        base.supported_sanitizers = SanitizerSet::ADDRESS
-            | SanitizerSet::CFI
-            | SanitizerSet::KCFI
-            | SanitizerSet::DATAFLOW
-            | SanitizerSet::LEAK
-            | SanitizerSet::MEMORY
-            | SanitizerSet::SAFESTACK
-            | SanitizerSet::THREAD
-            | SanitizerSet::REALTIME;
-        base.supports_xray = true;
-        base.has_rpath = false;
-        base.vendor = "ardos".into();
-
-        Target {
-            llvm_target: "x86_64-unknown-linux-gnu".into(),
-            metadata: TargetMetadata {
-                description: Some("x86_64 Ardos OS".into()),
-                tier: Some(3),
-                host_tools: Some(false),
-                std: Some(true),
-            },
-            pointer_width: 64,
-            data_layout:
-                "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
-            arch: Arch::X86_64,
-            options: base,
-        }
-    }
+        cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
+    ${ardosTargetRs}
     RSEOF
 
-        # Register in the target list (before x86_64-unknown-linux-gnu).
-        sed -i '/^supported_targets! {$/a\    ("x86_64-ardos-linux-gnu", x86_64_ardos_linux_gnu),' compiler/rustc_target/src/spec/mod.rs
+        # Register in the target list (before the first x86_64 entry).
+        sed -i '/^supported_targets! {$/a\    ("${ardosTargetCfg.targetTriple}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
 
         # Stage0 (pre-built) doesn't know about our new target yet, so mark it
         # as missing so the sanity check in bootstrap doesn't panic.
-        sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "x86_64-ardos-linux-gnu",' src/bootstrap/src/core/sanity.rs
+        sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "${ardosTargetCfg.targetTriple}",' src/bootstrap/src/core/sanity.rs
       '';
     });
     ardosRustc = prev.rustc.override {
