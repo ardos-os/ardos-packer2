@@ -1,0 +1,15 @@
+--- a/pkgs/development/compilers/rust/default.nix
++++ b/pkgs/development/compilers/rust/default.nix
+@@ -37,9 +37,9 @@
+       pkgsTargetTarget
+       ;
+   };
+-  # Allow faster cross compiler generation by reusing Build artifacts
+-  fastCross =
+-    (stdenv.buildPlatform == stdenv.hostPlatform) && (stdenv.hostPlatform != stdenv.targetPlatform);
++  # Always build a full compiler — the fastCross shortcut reuses the build
++  # compiler which is unsound when the Ardos target is unknown to stage0.
++  fastCross = false;
+ in
+ {
+   lib = lib';

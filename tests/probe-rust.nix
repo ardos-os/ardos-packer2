@@ -41,8 +41,10 @@
 
     # Derivation that, when built, checks if rust-std exists and compiles a file
     rustStdCheck = buildTarget.runCommand "probe-rust-std-${target}" {
-      nativeBuildInputs = [buildTarget.rustc];
+      nativeBuildInputs = [buildTarget.rustc buildTarget.which buildTarget.tree];
     } ''
+
+      
       echo "=== Rust cross-compiler sysroot probe for ${target} ==="
       echo "rustc: $(which rustc)"
       rustc --version
@@ -55,7 +57,7 @@
       echo ""
 
       # Check if rust-std libraries exist in the sysroot
-      RUSTC_LIBDIR="${buildTarget.rustc}/lib/rustlib/${cargoShortTarget_}/lib"
+      RUSTC_LIBDIR="${buildTarget.rustc.unwrapped}/lib/rustlib/${cargoShortTarget_}/lib"
       echo "Looking for rust-std at: $RUSTC_LIBDIR"
 
       if [ -d "$RUSTC_LIBDIR" ]; then
@@ -64,7 +66,7 @@
       else
         echo "WARN: rust-std directory does NOT exist at expected path"
         echo "Contents of rustlib:"
-        ls "${buildTarget.rustc}/lib/rustlib/" 2>/dev/null || true
+        tree "${buildTarget.rustc.unwrapped}/"
         echo "Trying to compile anyway..."
       fi
       echo ""
@@ -72,20 +74,20 @@
       # Try compiling a no_std file to prove the toolchain targets Ardos
       echo "=== Testing: compile a trivial .rs file ==="
       cat > /tmp/hello.rs << 'RSEOF'
-#![no_std]
-#[no_mangle]
-pub extern "C" fn ardosprobe() -> i32 { 42 }
+pub fn main() {
+  println!("hello world!");
+}
 RSEOF
-
+      cd /tmp
       rustc \
         --target "${rustcTargetSpec}" \
-        --crate-type lib \
-        /tmp/hello.rs \
-        -o "$out/hello.o" \
+        hello.rs \
+        -Clinker=${crossPkgs.stdenv.cc}/bin/${rustcTargetSpec}-cc \
         && echo "PASS: rustc compiled a .rs file for ${target}" \
         || { echo "FAIL: rustc could not compile for ${target}"; exit 1; }
-
-      file "$out/hello.o"
+      file "hello"
+      mkdir $out
+      cp hello $out/hello
       echo "Done."
     '';
   };

@@ -14,7 +14,10 @@
   patchedNixpkgs = beforePatchBuildPkgs.applyPatches {
     name = "nixpkgs-ardos";
     src = nixpkgs;
-    patches = [./patches/nixpkgs.patch];
+    patches = [
+      ./patches/nixpkgs.patch
+      ./patches/nixpkgs-fastcross.patch
+    ];
   };
 in {
   inherit patchedNixpkgs;

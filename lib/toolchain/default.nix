@@ -72,11 +72,8 @@
     isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
 
     # Architecture-specific settings for the built-in Rust target.
-    # Each entry maps a Nix CPU name (targetPlatform.cpu) to the values
-    # needed in the generated rustc_target target file.
     archRustSettings = {
       x86_64 = {
-        targetTriple = "x86_64-ardos-linux-gnu";
         rustModule = "x86_64_ardos_linux_gnu";
         llvmTarget = "x86_64-unknown-linux-gnu";
         cpu = "x86-64";
@@ -85,14 +82,12 @@
         dataLayout = ''"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"'';
         preLinkArgs = ''
           base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
-          base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::Yes), &["-m64"]);
         '';
         sanitizers = "SanitizerSet::ADDRESS | SanitizerSet::CFI | SanitizerSet::KCFI | SanitizerSet::DATAFLOW | SanitizerSet::LEAK | SanitizerSet::MEMORY | SanitizerSet::SAFESTACK | SanitizerSet::THREAD | SanitizerSet::REALTIME";
         supportsXray = true;
         pltByDefault = false;
       };
       aarch64 = {
-        targetTriple = "aarch64-ardos-linux-gnu";
         rustModule = "aarch64_ardos_linux_gnu";
         llvmTarget = "aarch64-unknown-linux-gnu";
         cpu = "generic";
@@ -106,12 +101,11 @@
       };
     };
 
-    # Select settings for the current target CPU.
     ardosTargetCpu = targetPlatform.cpu;
     ardosTargetCfg = builtins.getAttr ardosTargetCpu archRustSettings;
 
-    # Build the Rust target source file content from the settings.
     ardosTargetRs = ''
+      #![allow(rustc::bad_opt_access)]
       use crate::spec::{
           Arch, Cc, LinkerFlavor, Lld, SanitizerSet, StackProbeType, Target,
           TargetMetadata, base,
@@ -146,12 +140,8 @@
     '';
 
     # Build rustc with the Ardos target as a built-in (tier 3).
-    # With fastCross=false, stage0 (pre-built) compiles stage1 from the
-    # patched source; stage1 then builds std for Ardos.
-    ardosRustcUnwrapped = (prev.rustc.unwrapped.override {
-      fastCross = false;
-    }).overrideAttrs (old: {
-      postPatch = (old.postPatch or "") + ''
+    ardosRustcUnwrapped = (prev.rustc.unwrapped.overrideAttrs (old: {
+      postConfigure = (old.postConfigure or "") + ''
         echo "=== ap2: injecting built-in Ardos target ==="
         TARGET_DIR=compiler/rustc_target/src/spec/targets
         echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
@@ -159,18 +149,13 @@
     ${ardosTargetRs}
     RSEOF
 
-        echo "Registering ${ardosTargetCfg.targetTriple} in supported_targets!"
-        grep -n 'supported_targets!' compiler/rustc_target/src/spec/mod.rs | head -3
-        sed -i '/^supported_targets! {$/a\    ("${ardosTargetCfg.targetTriple}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
-        echo "Verifying target entry:"
-        grep "${ardosTargetCfg.rustModule}" compiler/rustc_target/src/spec/mod.rs | head -3
-
+        echo "Registering ${targetPlatform.rust.rustcTargetSpec} in supported_targets!"
+        sed -i '/^supported_targets! {$/a\    ("${targetPlatform.rust.rustcTargetSpec}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
         echo "Adding to STAGE0_MISSING_TARGETS"
-        sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "${ardosTargetCfg.targetTriple}",' src/bootstrap/src/core/sanity.rs
+        # sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "${targetPlatform.rust.rustcTargetSpec}",' src/bootstrap/src/core/sanity.rs
         echo "Verifying STAGE0_MISSING_TARGETS:"
-        grep "ardos" src/bootstrap/src/core/sanity.rs | head -3
       '';
-    });
+    }));
     ardosRustc = prev.rustc.override {
       rustc-unwrapped = ardosRustcUnwrapped;
       sysroot = null;
