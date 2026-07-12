@@ -11,9 +11,8 @@
 #
 # External consumers (e.g. flake.nix) only ever call `init` here. They should
 # not import from the per-stage directories directly.
-{nixpkgs}: let
-  lib = nixpkgs.lib;
-  platforms = import ./platforms.nix {inherit lib;};
+let
+  platforms = import ./platforms.nix;
 in rec {
   inherit platforms;
 
@@ -26,7 +25,8 @@ in rec {
   #                   (e.g. "x86_64-linux")
   #   toolchainConfig: optional attrset for toolchain-level concerns
   #                   (e.g. { glibc = { runtimePrefix = "/ardos"; }; })
-  init = args: let
+  init = {nixpkgs, ...}@args: let
+    lib = nixpkgs.lib;
     inherit (args) targetPlatform buildSystem;
     externalMappingsArg = args.externalMappings or [];
     toolchainConfig = args.toolchainConfig or {};

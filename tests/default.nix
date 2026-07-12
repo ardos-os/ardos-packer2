@@ -282,7 +282,7 @@ mkIntegrationTest =
 
             # Build a fresh instance with the test's configuration.
             instance = ap2.init {
-              inherit targetPlatform;
+              inherit targetPlatform nixpkgs;
               buildSystem = buildPlatform.linuxTriple;
               toolchainConfig = spec.toolchainConfig or {};
               glibcPlugins = spec.glibcPlugins or [];

@@ -10,7 +10,7 @@
     nixpkgs,
   }: let
     lib = nixpkgs.lib;
-    ap2 = import ./lib {inherit nixpkgs;};
+    ap2 = import ./lib;
     packages = import ./packages {inherit lib ap2 nixpkgs;};
   in {
     lib = ap2;

@@ -1,4 +1,4 @@
-{lib}: let
+let
   supportedCpus = import ./supportedCpus.nix;
   mkArdosPlatform = {
     cpu,
@@ -21,4 +21,4 @@
     };
   };
 in
-  lib.listToAttrs (map mkArdosPlatform supportedCpus)
+  builtins.listToAttrs (map mkArdosPlatform supportedCpus)

@@ -67,7 +67,7 @@ not leak into unrelated outputs.
 
 ```nix
 ap2.init {
-  inherit targetPlatform buildSystem;
+  inherit targetPlatform buildSystem nixpkgs;
   externalMappings = pkgs: [
     {
       drv = pkgs.glibc;

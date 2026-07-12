@@ -160,6 +160,13 @@ jobs:
             extra-substituters = https://ardos-os.cachix.org
             extra-trusted-public-keys = ardos-os.cachix.org-1:ER39Zub8rFCCCdjZ7VUG+654TvPFkH8fvk2Iofzt74s=
             experimental-features = nix-command flakes
+
+      - name: Push build outputs to Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: ardos-os
+          authToken: '${{ secrets.CACHIX_TOKEN }}'
+
       - name: Run tests
         run: |
           nix flake check
