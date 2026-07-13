@@ -30,6 +30,6 @@ in {
     system-disk-size = args.system-disk-size;
     user-disk-size = args.user-disk-size;
     smp = args.smp;
-    memory = args.memory;
+    memory = args.memory ? "4GB";
   };
 }
