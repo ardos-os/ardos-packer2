@@ -17,10 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - runner: blacksmith-16vcpu-ubuntu-2404
+          - runner: 
+              - blacksmith-16vcpu-ubuntu-2404
+              - ubuntu-latest
             arch: x86_64
             extra_platforms: x86_64-linux aarch64-linux
-          - runner: blacksmith-16vcpu-ubuntu-2404-arm
+          - runner: 
+              - blacksmith-16vcpu-ubuntu-2404-arm
+              - ubuntu-26.04-arm
             arch: aarch64
             extra_platforms: aarch64-linux x86_64-linux
         target_triple:
@@ -58,9 +62,13 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - runner: blacksmith-8vcpu-ubuntu-2404
+          - runner: 
+            - blacksmith-8vcpu-ubuntu-2404
+            - ubuntu-latest
             arch: x86_64
-          - runner: blacksmith-8vcpu-ubuntu-2404-arm
+          - runner: 
+            - blacksmith-8vcpu-ubuntu-2404-arm
+            - ubuntu-26.04-arm
             arch: aarch64
         target_triple:
           - x86_64
@@ -97,7 +105,9 @@ jobs:
   build-checks:
     name: Build test `${{ matrix.test_name[0] }} ${{ matrix.test_name[1] }}` (${{ matrix.target_triple }})
     needs: packages
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: 
+      - blacksmith-8vcpu-ubuntu-2404
+      - ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -143,9 +153,13 @@ jobs:
       matrix:
         arch:
           - triple: aarch64
-            runner: blacksmith-16vcpu-ubuntu-2404-arm
+            runner: 
+              - blacksmith-16vcpu-ubuntu-2404-arm
+              - ubuntu-26.04-arm
           - triple: x86_64
-            runner: blacksmith-16vcpu-ubuntu-2404
+            runner: 
+              - blacksmith-16vcpu-ubuntu-2404
+              - ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
