@@ -104,7 +104,66 @@ Executable shell scripts in Nix typically have shebangs pointing to `/nix/store/
 To run natively on Ardos, these shebangs must point to target packages that have runtime mappings (e.g., `/ardos/bin/bash`).
 Our setup hook intercepts and parses all shebangs in the `postFixup` phase of target packages. Using the aggregated `$ARDOS_RUNTIME_MAP`, it matches the Nix store hash of the interpreter against declared layouts and rewrites the shebang path to point to the Ardos location (e.g., `#!/nix/store/.../bin/bash` → `#!/ardos/bin/bash`).
 
-______________________________________________________________________
+
+### Boot and Kernel
+
+Ardos packer also brings some utilities to configure the kernel, initrd and a bootloader called [limine](https://github.com/limine-bootloader/limine).
+```nix
+# Linux kernel via buildLinux (cross-compiled for ardos target)
+ardosPacker.kernel {
+  src = fetchurl { ... };
+  version = "6.14";
+  structuredExtraConfig = { ... };
+}
+
+# Initramfs from a directory
+ardosPacker.initrd { src = ./initramfs; }
+
+# Initramfs from a Rust crate — builds a fully static musl binary
+# and places it at /init inside a cpio.gz archive.
+# Requires `crane` to be passed to `ap2.init`.
+ardosPacker.initrd.fromRustBinary ./init-rust-crate/
+
+# Limine UEFI bootloader binary
+ardosPacker.limine
+```
+
+### Why Limine?
+
+Limine is famous amongst hobby OS developers for it's simplicity and developer experience with it's own special protocol with the same name (formerly called stivale). But limine also supports booting linux, the ability for it to work without systemd and without bringing all of bloat of grub is what caught my attention to use it in ardos. Limine is self contained in one UEFI binary and it only requires a limine.conf which is a super easy human readable format and configurations don't go past 5 lines usually.
+
+It's the perfect bootloader for the case you don't want the user to even care what a bootloader is, it just goes past it without seeing anything, it is super fast and
+slick.
+
+## VM / QEMU
+
+Ardos-packer2 just like the original ardos-packer, provides utilities for spinning up a virtual machine for development.
+
+### VM-specific
+
+```nix
+# OVMF firmware (Code + Vars)
+ardosPacker.vm.ovmf
+
+# QEMU launch script — prepares disks, copies boot assets, launches VM
+# The script is at bin/ardos-vm-run inside the package after compiled
+#
+# Suggestion: You can make your own wrapper script or a job in your Justfile
+# that builds this derivation and runs the script inside automatically.
+ardosPacker.vm.launch {
+  kernel = ardosPacker.buildPkgs.linuxPackages_latest.kernel;
+  initrd = ardosPacker.initrd { src = ...; };
+  rom    = ardosPacker.rom { sysroot = ...; };
+  # optional:
+  kernel-params = "init=/bin/sh";        # extra kernel cmdline args
+  memory = "4G";
+  smp = "8";
+  system-disk-size = "4G";
+  user-disk-size = "20G";
+}
+```
+
+The `vm.launch` wrapper fills in sensible defaults for `limine`, `ovmf-code`, and `ovmf-vars` so you only need to provide `kernel`, `initrd`, and `rom`.
 
 ## Development Workflows
 
