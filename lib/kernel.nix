@@ -9,17 +9,18 @@
   structuredExtraConfig ? {},
   kernelPatches ? [],
   extraMeta ? {},
+  enableCommonConfig ? true,
+  ignoreConfigErrors ? false,
 }:
 let
   kernel = buildPkgs.buildLinux {
-    inherit src version kernelPatches extraMeta;
+    inherit src version kernelPatches extraMeta enableCommonConfig ignoreConfigErrors;
 
     stdenv = crossPkgs.stdenv;
     buildPackages = buildPkgs.pkgsBuildBuild;
 
     defconfig = "defconfig";
     structuredExtraConfig = structuredExtraConfig;
-    ignoreConfigErrors = false;
   };
 in
 kernel // {
