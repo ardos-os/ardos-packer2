@@ -13,7 +13,7 @@
   }: let
     lib = nixpkgs.lib;
     ap2 = import ./lib;
-    packages = import ./packages {inherit lib ap2 nixpkgs;};
+    packages = import ./packages {inherit lib ap2 nixpkgs crane;};
     probeRust = import ./tests/probe-rust.nix {inherit lib ap2 nixpkgs crane;};
   in {
     lib = ap2;

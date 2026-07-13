@@ -7,9 +7,9 @@
 -  # Allow faster cross compiler generation by reusing Build artifacts
 -  fastCross =
 -    (stdenv.buildPlatform == stdenv.hostPlatform) && (stdenv.hostPlatform != stdenv.targetPlatform);
-+  # Always build a full compiler — the fastCross shortcut reuses the build
++  # Allow faster cross compiler generation by reusing Build artifacts only when ardos is not involved
 +  # compiler which is unsound when the Ardos target is unknown to stage0.
-+  fastCross = false;
++  fastCross = (stdenv.buildPlatform == stdenv.hostPlatform) && (stdenv.hostPlatform != stdenv.targetPlatform) && !(lib.strings.hasSuffix "ardos-linux-gnu" stdenv.targetPlatform.config);
  in
  {
    lib = lib';
