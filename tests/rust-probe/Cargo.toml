@@ -1,0 +1,9 @@
+[package]
+name = "rust-probe"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+# Figure out github dependencies later
+# tab-app-framework = { git = "https://github.com/ardos-os/shift", tag = "tab/3.0.0", version = "0.1.0-alpha", optional = true }

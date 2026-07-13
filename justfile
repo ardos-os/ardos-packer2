@@ -20,9 +20,5 @@ env target="default":
     nix develop .#{{target}}
 
 
-# Starts local ollama server and ollama client in a preset zellij layout
-start-ai:
-    nix run ".#start-ai"
-
 alias check := build::check
 alias test := build::check
