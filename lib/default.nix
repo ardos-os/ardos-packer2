@@ -54,7 +54,7 @@ in rec {
       then glibcPluginsArg (crossPkgs // { inherit toolchainConfig; })
       else glibcPluginsArg;
     builder = import ./builder {
-      inherit buildPkgs crossPkgs externalMappings;
+      inherit buildPkgs crossPkgs crane externalMappings;
     };
     sysrootLib = import ./sysroot {
       inherit buildPkgs crossPkgs externalMappings glibcPlugins toolchainConfig;
@@ -63,7 +63,7 @@ in rec {
     # Instance-level building blocks (not VM-specific)
     kernel  = import ./kernel.nix { inherit buildPkgs lib crossPkgs; };
     limine  = import ./limine.nix { inherit buildPkgs lib; };
-    initrd  = import ./initrd.nix { inherit buildPkgs lib crane; };
+    initrd  = import ./initrd.nix { inherit buildPkgs crane; };
     vm = import ./vm {
       inherit buildPkgs lib crossPkgs kernel limine;
     };

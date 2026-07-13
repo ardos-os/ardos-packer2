@@ -21,6 +21,7 @@
   nixpkgs,
   crossPkgs,
   rustScript,
+  crane ? null,
   externalMappings ? [],
 }: let
   lib = nixpkgs.lib;
@@ -228,14 +229,17 @@ in rec {
   in
     wrappedDrv;
 
-  # Convenience wrapper: buildRustPackage + wrapDerivation.
+  # Convenience wrapper: crane buildPackage + wrapDerivation.
   buildArdosRustPackage = {
     runtimeLayoutScript ? null,
     runtimeLayout ? [],
     ...
   } @ args: let
     rustArgs = removeAttrs args ["runtimeLayout" "runtimeLayoutScript"];
-    drv = crossPkgs.rustPlatform.buildRustPackage rustArgs;
+    craneLib = crane.mkLib crossPkgs.pkgsBuildTarget;
+    drv = craneLib.buildPackage (rustArgs // {
+      strictDeps = true;
+    });
   in
     wrapDerivation drv {
       inherit runtimeLayoutScript runtimeLayout;

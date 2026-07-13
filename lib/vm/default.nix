@@ -27,9 +27,9 @@ in {
     initrd = args.initrd;
     limine = args.limine or limine;
     rom = args.rom;
-    system-disk-size = args.system-disk-size;
-    user-disk-size = args.user-disk-size;
-    smp = args.smp;
+    system-disk-size = args.system-disk-size or "2G";
+    user-disk-size = args.user-disk-size or "10G";
+    smp = args.smp or "4";
     memory = args.memory or "4GB";
   };
 }
