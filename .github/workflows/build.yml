@@ -19,14 +19,13 @@ jobs:
         build:
           - runner: blacksmith-16vcpu-ubuntu-2404
             arch: x86_64
-            extra_platforms: x86_64-linux aarch64-linux riscv64-linux
+            extra_platforms: x86_64-linux aarch64-linux
           - runner: blacksmith-16vcpu-ubuntu-2404-arm
             arch: aarch64
-            extra_platforms: aarch64-linux x86_64-linux riscv64-linux
+            extra_platforms: aarch64-linux x86_64-linux
         target_triple:
           - x86_64
           - aarch64
-          - riscv64
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -66,7 +65,6 @@ jobs:
         target_triple:
           - x86_64
           - aarch64
-          - riscv64
         package:
           - hellolibrary
           - hello
@@ -112,7 +110,6 @@ jobs:
         target_triple:
           - x86_64
           - aarch64
-          - riscv64
     steps:
       - name: Checkout
         uses: actions/checkout@v7

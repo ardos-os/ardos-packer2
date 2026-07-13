@@ -28,7 +28,6 @@
     linkerNames = {
       x86_64-ardos-linux-gnu = "ld-linux-x86-64.so.2";
       aarch64-ardos-linux-gnu = "ld-linux-aarch64.so.1";
-      riscv64-ardos-linux-gnu = "ld-linux-riscv64-lp64d.so.1";
     };
     ldName = linkerNames.${ctx.targetTriple} or (throw
       "combined e2e test: no linker name defined for ${ctx.targetTriple}");
