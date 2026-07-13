@@ -186,10 +186,10 @@
         then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
         else prev.stdenv;
 
-      rustPlatform = final.makeRustPlatform {
+      rustPlatform = if isTarget then final.makeRustPlatform {
         cargo = final.pkgsBuildBuild.cargo;
         rustc = final.pkgsBuildTarget.rustc;
-      };
+      } else prev.rustPlatform;
       rustc = ardosRustc;
       rustc-unwrapped = ardosRustcUnwrapped;
       
