@@ -85,7 +85,7 @@ in rec {
       scope =
         crossPkgs
         // {
-          inherit mkArdosDerivation mkRuntimeTree wrapDerivation;
+          inherit mkArdosDerivation mkRuntimeTree wrapDerivation buildArdosRustPackage;
           ap2 = instance;
         };
       in
