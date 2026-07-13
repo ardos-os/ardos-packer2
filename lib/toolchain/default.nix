@@ -186,8 +186,13 @@
         then wrapStdenvForArdos prev.stdenv ardosSetupHookDrv
         else prev.stdenv;
 
+      rustPlatform = final.makeRustPlatform {
+        cargo = final.pkgsBuildBuild.cargo;
+        rustc = final.pkgsBuildTarget.rustc;
+      };
       rustc = ardosRustc;
-
+      rustc-unwrapped = ardosRustcUnwrapped;
+      
       bintools =
         if isCrossTool
         then

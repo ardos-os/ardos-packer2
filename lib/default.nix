@@ -58,7 +58,7 @@ in rec {
     instance = rec {
       inherit crossPkgs;
       buildPkgs = toolchain.buildPkgs;
-      inherit (builder) mkArdosDerivation mkRuntimeTree wrapDerivation;
+      inherit (builder) mkArdosDerivation mkRuntimeTree wrapDerivation buildArdosRustPackage;
 
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;

@@ -25,5 +25,6 @@
     mkArdosDerivation
     mkRuntimeTree
     wrapDerivation
+    buildArdosRustPackage
     ;
 }

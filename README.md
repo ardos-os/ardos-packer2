@@ -114,7 +114,6 @@ We use `just` as our task runner. The task configuration is split into discovera
 Available recipes:
     default              # Show all available recipes including submodules
     env target="default" # Enter development shell (default: toolset, or pass 'stdenv' for cross-compilers)
-    start-ai             # Starts local ollama server and ollama client in a preset zellij layout
     build:
         check type name arch="x86_64" target=arch # Runs a nix check exported from the flake outputs by name [alias: test]
         pkg name arch="x86_64" target=arch        # Build an package exported from the flake outputs by name
@@ -134,31 +133,4 @@ on the same code Nix OS is built on.
 We do have a plan to migrate over to our own derivations instead and completely break free from nixpkgs to manage the toolchain
 and build packages targetting Ardos OS, but that's not just viable right now during this experimental phase.
 
-## AI Usage
 
-This is controversial so I'm already leaving here the disclaimer.
-
-We do use a bit of AI, especially because nixpkgs is really complex and we do often run into issues because of something that happens behind the scenes we don't usually notice. Don't see the use of AI here as slop, it is being used to deal with puzzling issues
-we just want to quickly get over with and deal with technical debt. All the code is still thourougly tested and audited for code quality both through unit tests, integration tests and manual tests.
-
-
-<details><summary>Local AI</summary>
-<p>
-
-The repository features a local LLM setup you can call with
-
-```
-just start-ai
-```
-
-
-
-If you have a beefy machine like a gaming PC, there's no need to beg billy G for tokens: you can download some local models and use
-them with your favorite Agent CLI like codex, claude code and others, but expect to need at least 64GB of RAM/VRAM and a good
-dedicated GPU (so VRAM goes vroom vroom because it doesn't share the same memory bus as the CPU) that supports vulkan (no need for surface extension) for a good experience.
-
-If you have a weak machine with no option to host a minimally usable model for coding,
-you'll have to use ollama cloud models, which are not bad at all and the plan is not that expensive. Codex works best with `minimax-m3:cloud` model if you use that, the other models tend to think too much or not understand how to work with codex tools well.
-
-</p>
-</details> 

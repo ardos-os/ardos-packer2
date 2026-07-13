@@ -228,6 +228,19 @@ in rec {
   in
     wrappedDrv;
 
+  # Convenience wrapper: buildRustPackage + wrapDerivation.
+  buildArdosRustPackage = {
+    runtimeLayoutScript ? null,
+    runtimeLayout ? [],
+    ...
+  } @ args: let
+    rustArgs = removeAttrs args ["runtimeLayout" "runtimeLayoutScript"];
+    drv = crossPkgs.rustPlatform.buildRustPackage rustArgs;
+  in
+    wrapDerivation drv {
+      inherit runtimeLayoutScript runtimeLayout;
+    };
+
   # The main package builder
   mkArdosDerivation = {
     pname,
