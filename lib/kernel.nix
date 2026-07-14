@@ -43,10 +43,10 @@ buildPkgs.stdenv.mkDerivation {
       [[ -z "$key" ]] && continue
       [[ "$key" =~ ^# ]] && continue
       # Normalize key
-      key="${key//[[:space:]]/}"
+      key="''${key//[[:space:]]/}"
       key=''${key#CONFIG_}
-      key="${key//-/_}"
-      key="${key//./_}"
+      key="''${key//-/_}"
+      key="''${key//./_}"
       key=''${key^^}
       symbol="CONFIG_$key"
 
