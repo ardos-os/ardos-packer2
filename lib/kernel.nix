@@ -29,7 +29,7 @@ buildPkgs.stdenv.mkDerivation {
     buildPkgs.rsync
     buildPkgs.gmp
     buildPkgs.mpfr
-    buildPkgs.mpc
+    buildPkgs.libmpc
   ];
 
   configurePhase = ''
