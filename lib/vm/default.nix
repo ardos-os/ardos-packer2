@@ -13,21 +13,13 @@
   crossPkgs,
   kernel,
   limine,
-  nixgl ? null,
 }: let
   ovmf        = import ./ovmf.nix { inherit buildPkgs; };
   launch      = import ./launch-script.nix { inherit buildPkgs lib; };
-  nixGLDefault =
-    if nixgl != null
-    then nixgl.packages.${buildPkgs.system}.nixGLDefault
-    else null;
 in {
   inherit ovmf kernel limine;
 
-  vmNixGL = nixGLDefault;
-
   launch = args: launch {
-    nixGL = nixGLDefault;
     ovmf-code = args.ovmf-code or ovmf;
     ovmf-vars = args.ovmf-vars or ovmf;
     kernel-params = args.kernel-params or "";
