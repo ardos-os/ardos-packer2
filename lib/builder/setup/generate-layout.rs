@@ -39,7 +39,7 @@ fn main() -> io::Result<()> {
         "[Ardos Layout] generate-layout invoked: out={}",
         out.display()
     );
-    fs::create_dir_all(&nix_support)?;
+    fs::create_dir_all(&nix_support).ok();
     let mut layout_file = File::create(&layout_file_path)?;
 
     if is_debug() {
