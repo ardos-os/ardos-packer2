@@ -37,7 +37,6 @@ buildPkgs.writeShellApplication {
     coreutils
     findutils
     libglvnd
-    nixgl.auto
   ];
 
   text = ''
@@ -85,7 +84,7 @@ buildPkgs.writeShellApplication {
     export LD_LIBRARY_PATH="${buildPkgs.mesa}/lib:''${LD_LIBRARY_PATH:-}"
 
     # shellcheck disable=SC2086
-    nixGL qemu-system-x86_64 -enable-kvm -cpu host -smp "$SMP" -machine "type=pc-q35-11.0,accel=kvm,memory-backend=pc.ram,usb=off,vmport=off,smm=on,hpet=off,acpi=on" -object "memory-backend-ram,id=pc.ram,size=$MEMORY" -vga none -device virtio-vga-gl,max_outputs=1 -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d
+    qemu-system-x86_64 -enable-kvm -cpu host -smp "$SMP" -machine "type=pc-q35-11.0,accel=kvm,memory-backend=pc.ram,usb=off,vmport=off,smm=on,hpet=off,acpi=on" -object "memory-backend-ram,id=pc.ram,size=$MEMORY" -vga none -device virtio-vga-gl,max_outputs=1 -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d
 
     QEMU_EXIT=$?
 
