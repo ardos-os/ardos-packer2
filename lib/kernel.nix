@@ -27,6 +27,7 @@ buildPkgs.stdenv.mkDerivation {
     buildPkgs.python3
     buildPkgs.cpio
     buildPkgs.rsync
+    buildPkgs.zstd
     buildPkgs.gmp
     buildPkgs.mpfr
     buildPkgs.libmpc
