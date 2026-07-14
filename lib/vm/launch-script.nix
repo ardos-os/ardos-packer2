@@ -8,7 +8,7 @@
   kernel-params ? "",
   system-disk-size ? "2G",
   user-disk-size ? "10G",
-  memory ? "2G",
+  memory ? "4G",
   smp ? "4",
   kernel,
   initrd,
