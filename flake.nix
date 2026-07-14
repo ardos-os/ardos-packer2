@@ -11,7 +11,6 @@
     self,
     nixpkgs,
     crane,
-    nixgl,
   }: let
     lib = nixpkgs.lib;
     ap2 = import ./lib;
