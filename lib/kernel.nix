@@ -14,22 +14,22 @@ buildPkgs.stdenv.mkDerivation {
   pname = "linux";
   inherit version src;
 
-  nativeBuildInputs = with buildPkgs; [
-    gcc
-    binutils
-    make
-    bison
-    flex
-    bc
-    openssl
-    perl
-    elfutils
-    python3
-    cpio
-    rsync
-    gmp
-    mpfr
-    mpc
+  nativeBuildInputs = [
+    buildPkgs.gcc
+    buildPkgs.binutils
+    buildPkgs.gnumake
+    buildPkgs.bison
+    buildPkgs.flex
+    buildPkgs.bc
+    buildPkgs.openssl
+    buildPkgs.perl
+    buildPkgs.elfutils
+    buildPkgs.python3
+    buildPkgs.cpio
+    buildPkgs.rsync
+    buildPkgs.gmp
+    buildPkgs.mpfr
+    buildPkgs.mpc
   ];
 
   configurePhase = ''
