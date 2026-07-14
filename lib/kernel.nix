@@ -16,7 +16,6 @@ let
   kernel = buildPkgs.buildLinux {
     inherit src version kernelPatches extraMeta enableCommonConfig ignoreConfigErrors;
 
-    stdenv = crossPkgs.stdenv;
     buildPackages = buildPkgs.pkgsBuildBuild;
 
     defconfig = "defconfig";
