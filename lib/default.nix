@@ -30,7 +30,7 @@ in rec {
   #   toolchainConfig: optional attrset for toolchain-level concerns
   #                   (e.g. { glibc = { runtimePrefix = "/ardos"; }; })
   #   crane:          optional crane lib (required for initrd.fromRustBinary)
-  init = {nixpkgs, crane ? null, ...}@args: let
+  init = {nixpkgs, crane ? null, nixgl ? null, ...}@args: let
     lib = nixpkgs.lib;
     inherit (args) targetPlatform buildSystem;
     externalMappingsArg = args.externalMappings or [];
@@ -65,7 +65,7 @@ in rec {
     limine  = import ./limine.nix { inherit buildPkgs lib; };
     initrd  = import ./initrd.nix { inherit buildPkgs crane; };
     vm = import ./vm {
-      inherit buildPkgs lib crossPkgs kernel limine;
+      inherit buildPkgs lib crossPkgs kernel limine nixgl;
     };
   in let
     instance = rec {
