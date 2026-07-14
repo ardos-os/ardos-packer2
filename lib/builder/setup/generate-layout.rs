@@ -49,43 +49,6 @@ fn main() -> io::Result<()> {
         );
     }
 
-    let mut map_bin_dir = |dir_name: &str| -> io::Result<()> {
-        let dir_path = out.join(dir_name);
-        if dir_path.is_dir() {
-            for entry in fs::read_dir(dir_path)? {
-                let entry = entry?;
-                let file_type = entry.file_type()?;
-                if file_type.is_file() || file_type.is_symlink() {
-                    if let Some(file_name) = entry.file_name().to_str() {
-                        if file_name.contains(".so") {
-                            writeln!(
-                                layout_file,
-                                "{dir_name}/{file_name} -> /ardos/bin/{file_name}"
-                            )?;
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    };
 
-    map_bin_dir("bin")?;
-    map_bin_dir("sbin")?;
-
-    let lib_path = out.join("lib");
-    if lib_path.is_dir() {
-        for entry in fs::read_dir(lib_path)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
-            if file_type.is_file() || file_type.is_symlink() {
-                if let Some(file_name) = entry.file_name().to_str() {
-                    if file_name.contains(".so") {
-                        writeln!(layout_file, "lib/{file_name} -> /ardos/lib/{file_name}")?;
-                    }
-                }
-            }
-        }
-    }
     Ok(())
 }

@@ -88,40 +88,42 @@ fn translate_rpath(
     unmapped_nix_paths: &mut Vec<UnmappedNixPath>,
     used_mappings: &mut BTreeSet<String>,
 ) -> io::Result<()> {
-    let clean_str = PathBuf::from(val).to_string_lossy().into_owned();
-    if let Some((matched_path, translated)) = translate_mapped_path(path_map, &clean_str) {
-        used_mappings.insert(matched_path);
-        eprintln!("Translating library {clean_str} -> {translated}");
-        stdout.write_all(flag.as_bytes())?;
-        stdout.write_all(b"\0")?;
-        stdout.write_all(translated.as_bytes())?;
-        stdout.write_all(b"\0")?;
-
-        stdout.write_all(b"-rpath-link")?;
-        stdout.write_all(b"\0")?;
-        stdout.write_all(val.as_bytes())?;
-        stdout.write_all(b"\0")?;
-    } else if clean_str.starts_with("/nix/store/") {
-        if is_current_output_path(&clean_str) {
-            if env::var("NIX_DEBUG").unwrap_or_default() == "1" {
-                eprintln!(
-                    "[Ardos Linker Hook (Rust)] Stripping current output RPATH before install: {}",
-                    clean_str
-                );
-            }
-            return Ok(());
+    // RPATH entries are colon-separated (e.g. -rpath dir1:dir2:).
+    // Translate each component independently, join back with colons.
+    let mut translated_components: Vec<String> = Vec::new();
+    let mut had_unmapped = false;
+    for component in val.split(':') {
+        if component.is_empty() {
+            translated_components.push(String::new());
+            continue;
         }
+        let clean_str = PathBuf::from(component).to_string_lossy().into_owned();
+        if let Some((matched_path, translated)) = translate_mapped_path(path_map, &clean_str) {
+            used_mappings.insert(matched_path);
+            eprintln!("Translating library {clean_str} -> {translated}");
+            translated_components.push(translated);
+        } else if clean_str.starts_with("/nix/store/") {
+            unmapped_nix_paths.push(UnmappedNixPath {
+                kind: "rpath",
+                path: clean_str.clone(),
+                lookup_path: clean_str,
+            });
+            had_unmapped = true;
+            translated_components.push(component.to_string());
+        } else if is_dir_empty(&clean_str) {
+            continue;
+        } else {
+            translated_components.push(component.to_string());
+        }
+    }
 
-        unmapped_nix_paths.push(UnmappedNixPath {
-            kind: "rpath",
-            path: clean_str.clone(),
-            lookup_path: clean_str,
-        });
-    } else if is_dir_empty(&clean_str) {
-        return Ok(());
-    } else {
-        eprintln!("other libraries: {flag} {val}");
+    if !translated_components.is_empty() && !had_unmapped {
+        let joined = translated_components.join(":");
         stdout.write_all(flag.as_bytes())?;
+        stdout.write_all(b"\0")?;
+        stdout.write_all(joined.as_bytes())?;
+        stdout.write_all(b"\0")?;
+        stdout.write_all(b"-rpath-link")?;
         stdout.write_all(b"\0")?;
         stdout.write_all(val.as_bytes())?;
         stdout.write_all(b"\0")?;

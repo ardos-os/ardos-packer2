@@ -24,8 +24,84 @@
   crane ? null,
   externalMappings ? [],
 }: let
+
   lib = nixpkgs.lib;
   stdenv = crossPkgs.stdenv;
+
+
+updateMappings = args: ''
+            echo "[Ardos Layout] Resolving runtime layout script for ${args.pname}..."
+
+            # Honour NIX_DEBUG: the script (and the walk below) is silent unless the
+            # user opted in. This keeps rebuild logs short on cache hits.
+            if [ "''${NIX_DEBUG:-0}" = "1" ]; then
+              layout_debug=1
+            else
+              layout_debug=0
+            fi
+
+            mkdir -p $out/nix-support
+
+            if [ -z "${toString args.resolvedLayoutScript}" ]; then
+              echo "[Ardos Layout] No runtimeLayoutScript / runtimeLayout declared; leaving layout to default generator." >&2
+            else
+              stage=$(mktemp -d -t ardos-layout-XXXXXX)
+              trap 'rm -rf "$stage"' EXIT
+
+              out=$out stage=$stage bash -c ${lib.escapeShellArg args.resolvedLayoutScript}
+
+              # Walk the stage, recording every symlink (and the regular files the
+              # script may have copied, for completeness). Each entry becomes a
+              # "<source-in-$out> -> <abs-target>" line in the layout file.
+              : > $out/nix-support/ardos-layout
+              [ "$layout_debug" = "1" ] && echo "[Ardos Layout] Walking $stage..." >&2
+
+              # Use a NUL-delimited find so paths with spaces/newlines survive.
+              while IFS= read -r -d $'\0' entry; do
+                # Skip entries under $stage itself (we want its children).
+                rel="''${entry#$stage/}"
+                [ "$rel" = "$entry" ] && continue
+
+                target="/$rel"
+
+                if [ -L "$entry" ]; then
+                  # Resolve one level of symlink (the immediate stage target).
+                  # This preserves any internal symlink chain within $out
+                  # (e.g. libpng.so → libpng16.so → libpng16.so.16 → libpng16.so.16.47.0).
+                  pointed=$(readlink -- "$entry" 2>/dev/null || true)
+                  if [ -n "$pointed" ] && [[ "$pointed" == "$out"/* ]]; then
+                    src_rel="''${pointed#$out/}"
+                  else
+                    # Symlink escaped the package output — preserve it verbatim so
+                    # downstream consumers can still see the intended target.
+                    src_rel="$pointed"
+                  fi
+                elif [ -f "$entry" ]; then
+                  echo "error: runtimeLayoutScript for ${args.pname} created a concrete file in ardos-layout: $entry" >&2
+                  exit 1
+                else
+                  # Directory or other: skip — we only emit leaf mappings.
+                  continue
+                fi
+
+                printf '%s -> %s\n' "$src_rel" "$target" >> $out/nix-support/ardos-layout
+              done < <(find "$stage" -mindepth 1 -print0)
+
+              if [ "$layout_debug" = "1" ]; then
+                echo "[Ardos Layout] Resolved layout for ${args.pname}:" >&2
+                sed 's/^/  /' $out/nix-support/ardos-layout >&2
+              fi
+            fi
+
+            # Keep the link-time runtime map as output metadata. The final ROM
+            # never copies nix-support, but this file intentionally preserves
+            # Nix references to mapped runtime dependencies so closureInfo can
+            # discover transitive runtime packages even after RPATH/interpreter
+            # paths have been translated away from /nix/store.
+            if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
+              cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
+            fi
+          '';
 
   layoutListToScript = entries:
     lib.concatMapStrings (entry: ''
@@ -47,11 +123,11 @@
 
         target="/$rel"
         if [ -L "$entry" ]; then
-          pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
+          pointed=$(readlink -- "$entry" 2>/dev/null || true)
           if [ -n "$pointed" ] && [[ "$pointed" == "${mapping.drv}"/* ]]; then
             src_rel="''${pointed#${mapping.drv}/}"
           else
-            src_rel=$(readlink -- "$entry")
+            src_rel="$pointed"
           fi
         elif [ -f "$entry" ]; then
           echo "error: runtimeLayoutScript for ${mapping.drv} created a concrete file in ardos-layout: $entry" >&2
@@ -132,7 +208,7 @@ in rec {
   wrapDerivation = drv: {
     runtimeLayoutScript ? null,
     runtimeLayout ? [],
-  }: let
+  }@args: let
     pname = drv.pname or drv.name;
     version = drv.version or "0";
 
@@ -150,65 +226,12 @@ in rec {
         ardosEarlyInitExe;
       __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
       ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
-
-      postInstall =
-        (old.postInstall or "")
-        + ''
-          echo "[Ardos Layout] Resolving runtime layout for ${pname} (wrapDerivation)..."
-
-          if [ "''${NIX_DEBUG:-0}" = "1" ]; then
-            layout_debug=1
-          else
-            layout_debug=0
-          fi
-
-          mkdir -p $out/nix-support
-
-          if [ -z "${toString resolvedLayoutScript}" ]; then
-            echo "[Ardos Layout] No runtimeLayoutScript / runtimeLayout declared; writing empty layout." >&2
-            : > $out/nix-support/ardos-layout
-          else
-            stage=$(mktemp -d -t ardos-layout-XXXXXX)
-            trap 'rm -rf "$stage"' EXIT
-
-            out=$out stage=$stage bash -c ${lib.escapeShellArg resolvedLayoutScript}
-
-            : > $out/nix-support/ardos-layout
-            [ "$layout_debug" = "1" ] && echo "[Ardos Layout] Walking $stage..." >&2
-
-            while IFS= read -r -d $'\0' entry; do
-              rel="''${entry#$stage/}"
-              [ "$rel" = "$entry" ] && continue
-
-              target="/$rel"
-
-              if [ -L "$entry" ]; then
-                pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
-                if [ -n "$pointed" ] && [[ "$pointed" == "$out"/* ]]; then
-                  src_rel="''${pointed#$out/}"
-                else
-                  src_rel=$(readlink -- "$entry")
-                fi
-              elif [ -f "$entry" ]; then
-                echo "error: runtimeLayoutScript for ${pname} created a concrete file in ardos-layout: $entry" >&2
-                exit 1
-              else
-                continue
-              fi
-
-              printf '%s -> %s\n' "$src_rel" "$target" >> $out/nix-support/ardos-layout
-            done < <(find "$stage" -mindepth 1 -print0)
-
-            if [ "$layout_debug" = "1" ]; then
-              echo "[Ardos Layout] Resolved layout for ${pname}:" >&2
-              sed 's/^/  /' $out/nix-support/ardos-layout >&2
-            fi
-          fi
-
-          if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
-            cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
-          fi
-        '';
+        preConfigure =
+                  (old.postConfigure or "")
+                  + updateMappings (old//args);
+        postConfigure =
+          (old.postConfigure or "")
+          + updateMappings (old//args);
     });
 
     # Pass 2: attach passthru.ardos metadata. References drvWithLayout which
@@ -266,7 +289,7 @@ in rec {
       if runtimeLayoutScript != null
       then runtimeLayoutScript
       else layoutListToScript runtimeLayout;
-
+    
     # Build the derivation using our target stdenv
     drv = crossPkgs.stdenv.mkDerivation (cleanArgs
       // {
@@ -284,80 +307,12 @@ in rec {
         # tree and writes one `<rel-source> -> <abs-target>` line per symlink into
         # $out/nix-support/ardos-layout. This file is the single source of truth
         # consumed by the linker wrapper, downstream packages, and the ROM generator.
-        postInstall =
-          (args.postInstall or "")
-          + ''
-            echo "[Ardos Layout] Resolving runtime layout script for ${pname}..."
-
-            # Honour NIX_DEBUG: the script (and the walk below) is silent unless the
-            # user opted in. This keeps rebuild logs short on cache hits.
-            if [ "''${NIX_DEBUG:-0}" = "1" ]; then
-              layout_debug=1
-            else
-              layout_debug=0
-            fi
-
-            mkdir -p $out/nix-support
-
-            if [ -z "${toString resolvedLayoutScript}" ]; then
-              echo "[Ardos Layout] No runtimeLayoutScript / runtimeLayout declared; writing empty layout." >&2
-              : > $out/nix-support/ardos-layout
-            else
-              stage=$(mktemp -d -t ardos-layout-XXXXXX)
-              trap 'rm -rf "$stage"' EXIT
-
-              out=$out stage=$stage bash -c ${lib.escapeShellArg resolvedLayoutScript}
-
-              # Walk the stage, recording every symlink (and the regular files the
-              # script may have copied, for completeness). Each entry becomes a
-              # "<source-in-$out> -> <abs-target>" line in the layout file.
-              : > $out/nix-support/ardos-layout
-              [ "$layout_debug" = "1" ] && echo "[Ardos Layout] Walking $stage..." >&2
-
-              # Use a NUL-delimited find so paths with spaces/newlines survive.
-              while IFS= read -r -d $'\0' entry; do
-                # Skip entries under $stage itself (we want its children).
-                rel="''${entry#$stage/}"
-                [ "$rel" = "$entry" ] && continue
-
-                target="/$rel"
-
-                if [ -L "$entry" ]; then
-                  # Resolve the symlink relative to its own directory.
-                  pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
-                  if [ -n "$pointed" ] && [[ "$pointed" == "$out"/* ]]; then
-                    src_rel="''${pointed#$out/}"
-                  else
-                    # Symlink escaped the package output — preserve it verbatim so
-                    # downstream consumers can still see the intended target.
-                    src_rel=$(readlink -- "$entry")
-                  fi
-                elif [ -f "$entry" ]; then
-                  echo "error: runtimeLayoutScript for ${pname} created a concrete file in ardos-layout: $entry" >&2
-                  exit 1
-                else
-                  # Directory or other: skip — we only emit leaf mappings.
-                  continue
-                fi
-
-                printf '%s -> %s\n' "$src_rel" "$target" >> $out/nix-support/ardos-layout
-              done < <(find "$stage" -mindepth 1 -print0)
-
-              if [ "$layout_debug" = "1" ]; then
-                echo "[Ardos Layout] Resolved layout for ${pname}:" >&2
-                sed 's/^/  /' $out/nix-support/ardos-layout >&2
-              fi
-            fi
-
-            # Keep the link-time runtime map as output metadata. The final ROM
-            # never copies nix-support, but this file intentionally preserves
-            # Nix references to mapped runtime dependencies so closureInfo can
-            # discover transitive runtime packages even after RPATH/interpreter
-            # paths have been translated away from /nix/store.
-            if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
-              cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
-            fi
-          '';
+        preConfigure =
+          (args.postConfigure or "")
+          + updateMappings args;
+        postConfigure =
+          (args.postConfigure or "")
+          + updateMappings args;
       });
   in
     drv.overrideAttrs (old: {
