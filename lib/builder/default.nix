@@ -23,6 +23,7 @@
       inherit crossPkgs rustScript crane externalMappings;
     })
     mkArdosDerivation
+    mkArdosDerivationClang
     wrapDerivation
     buildArdosRustPackage
     ;

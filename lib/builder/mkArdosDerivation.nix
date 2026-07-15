@@ -240,4 +240,73 @@ in rec {
           };
         };
     });
+
+  # Identical to mkArdosDerivation but uses clangStdenv instead of stdenv.
+  # Required for packages that need clang as the cross compiler (e.g. systemd
+  # BPF compilation, which invokes clang -target bpf directly).
+  mkArdosDerivationClang = {
+    pname,
+    version,
+    runtimeLayout ? [],
+    ...
+  } @ args: let
+    cleanArgs = removeAttrs args ["runtimeLayout"];
+
+    resolvedLayout = layoutListToLayout runtimeLayout;
+    layoutText = layoutListToText runtimeLayout;
+
+    drv = crossPkgs.clangStdenv.mkDerivation (cleanArgs
+      // {
+        dontPatchELF = true;
+        dontShrinkRpath = true;
+
+        _ardos_translate = let
+          ardosEarlyInit = rustScript "ardos_ld_translate" ./hooks/ardos_ld_translate.rs;
+          ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos_ld_translate";
+        in
+          ardosEarlyInitExe;
+        __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
+        ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
+        ARDOS_CURRENT_PACKAGE_LAYOUT = layoutText;
+        NIX_DEBUG = "1";
+
+        postInstall =
+          (args.postInstall or "")
+          + ''
+            echo "[Ardos Layout] Writing runtime layout for ${pname} (clang)..."
+
+            if [ "''${NIX_DEBUG:-0}" = "1" ]; then
+              layout_debug=1
+            else
+              layout_debug=0
+            fi
+
+            mkdir -p $out/nix-support
+
+            if [ -z "${toString resolvedLayout}" ]; then
+              echo "[Ardos Layout] No runtimeLayout declared; leaving layout to default generator." >&2
+            else
+              : > $out/nix-support/ardos-layout
+              ${resolvedLayout}
+
+              if [ "$layout_debug" = "1" ]; then
+                echo "[Ardos Layout] Resolved layout for ${pname}:" >&2
+                sed 's/^/  /' $out/nix-support/ardos-layout >&2
+              fi
+            fi
+
+            if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
+              cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
+            fi
+          '';
+      });
+  in
+    drv.overrideAttrs (old: {
+      passthru =
+        old.passthru or {
+          ardos = {
+            runtimeLayout = runtimeLayout;
+          };
+        };
+    });
 }
