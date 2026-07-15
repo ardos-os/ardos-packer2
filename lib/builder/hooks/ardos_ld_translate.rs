@@ -147,6 +147,13 @@ fn translate_rpath(
             });
             had_unmapped = true;
             translated_components.push(component.to_string());
+        } else if clean_str.contains("$ORIGIN")
+            || clean_str.contains("$LIB")
+            || clean_str.contains("$PLATFORM")
+        {
+            // ELF dynamic string tokens (e.g. $ORIGIN/../lib) are not real
+            // filesystem paths — always pass them through unchanged.
+            translated_components.push(component.to_string());
         } else if is_dir_empty(&clean_str) {
             continue;
         } else {
