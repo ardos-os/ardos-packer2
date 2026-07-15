@@ -153,6 +153,14 @@ in {
 
           src_rel="''${line%% -> *}"
           dest_abs="''${line#* -> }"
+
+          # Special target /dev/null means "exclude from ROM".  This lets
+          # packages override a recursive folder mapping by excluding specific
+          # files (e.g. lib/sensitive.so -> /dev/null).
+          case "$dest_abs" in
+            /dev/null) continue ;;
+          esac
+
           case "$src_rel" in
             /*) src_path="$src_rel" ;;
             *) src_path="$store_path/$src_rel" ;;
