@@ -57,6 +57,10 @@ fn main() -> io::Result<()> {
     let out = env::var("out").unwrap_or_default();
     let mut map_file = OpenOptions::new().append(true).open(runtime_map_path)?;
 
+    // Process a single layout line and write it to the runtime map.
+    // Lines are raw entries like "lib/ -> /ardos/lib/" or "lib/foo.so -> /ardos/lib/foo.so".
+    // Folder mappings (trailing /) are preserved as-is — the ld translator
+    // expands them on-the-fly via longest-prefix matching.
     let process_layout_line = |line: &str, base_dir: &str, w: &mut File| -> io::Result<()> {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -65,24 +69,25 @@ fn main() -> io::Result<()> {
         if let Some((src_rel, dest_path)) = trimmed.split_once(" -> ") {
             let src_path = Path::new(base_dir).join(src_rel.trim());
             let dest_path = Path::new(dest_path.trim());
-            if src_path.is_dir() && !src_path.is_symlink() {
-                writeln!(w, "{} -> {}", src_path.display(), dest_path.display())?;
-            } else if let (Some(src_dir), Some(dest_dir)) = (src_path.parent(), dest_path.parent())
-            {
-                writeln!(w, "{} -> {}", src_dir.display(), dest_dir.display())?;
-            }
+            writeln!(w, "{} -> {}", src_path.display(), dest_path.display())?;
         }
         Ok(())
     };
 
-    // 1. The package's own layout, if it was declared inline.
-    if let Ok(layout_meta) = env::var("ardosLayoutMetadata") {
-        if !layout_meta.is_empty() {
+    // 1. The current package's own layout, passed via env var.
+    //    This is set by mkArdosDerivation to the raw runtimeLayout content.
+    //    Folder mappings are preserved as-is — the ld translator expands them
+    //    on-the-fly via longest-prefix matching at link time.
+    //    This enables self-dependency: a package's bin/ can link against its
+    //    own lib/ because the folder mapping is in the runtime map before the
+    //    linker runs.
+    if let Ok(layout) = env::var("ARDOS_CURRENT_PACKAGE_LAYOUT") {
+        if !layout.is_empty() {
             if is_debug() {
-                eprintln!("[Ardos Setup] Adding current package layout metadata");
+                eprintln!("[Ardos Setup] Adding current package layout from ARDOS_CURRENT_PACKAGE_LAYOUT");
             }
-            for line in layout_meta.lines() {
-                process_layout_line(&line, &out, &mut map_file)?;
+            for line in layout.lines() {
+                process_layout_line(line, &out, &mut map_file)?;
             }
         }
     }

@@ -5,8 +5,8 @@
 # install destinations), so glibc's lib directory is always at ${glibc}/lib
 # regardless of runtimePrefix.
 #
-# NSS modules (libnss_*) are excluded from the core glibc mapping.
-# They are provided declaratively via glibcPlugins instead.
+# NSS modules (libnss_*) are excluded by the sysroot's GNU ld script
+# filtering and glibcPlugins mechanism.
 crossPkgs: let
   inherit (crossPkgs) glibc;
   inherit (crossPkgs.stdenv.cc.cc) libgcc lib;
@@ -17,49 +17,18 @@ crossPkgs: let
 in [
   {
     drv = glibc;
-    runtimeLayoutScript = ''
-      for so in ${glibc}/lib/*.so*; do
-        [ -e "$so" ] || continue
-        case "$(basename "$so")" in libnss_*) continue ;; esac
-        # GNU ld scripts (e.g. libc.so, libm.so GROUP scripts) are linker
-        # inputs only and must never be materialized into the runtime ROM.
-        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
-        mkdir -p "$stage/ardos/lib"
-        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
-      done
-    '';
+    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
   }
   {
     drv = nssFiles;
-    runtimeLayoutScript = ''
-      for so in ${nssFiles}/lib/*.so*; do
-        [ -e "$so" ] || continue
-        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
-        mkdir -p "$stage/ardos/lib"
-        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
-      done
-    '';
+    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
   }
   {
     drv = libgcc;
-    runtimeLayoutScript = ''
-      for so in "$out"/lib/*.so*; do
-        [ -e "$so" ] || continue
-        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
-        mkdir -p "$stage/ardos/lib"
-        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
-      done
-    '';
+    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
   }
   {
     drv = lib;
-    runtimeLayoutScript = ''
-      for so in "$out"/${crossPkgs.stdenv.hostPlatform.config}/lib/*.so*; do
-        [ -e "$so" ] || continue
-        case "$(head -c 4096 "$so" 2>/dev/null)" in "/* GNU ld script"*) continue ;; esac
-        mkdir -p "$stage/ardos/lib"
-        ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
-      done
-    '';
+    runtimeLayout = [{ source = "${crossPkgs.stdenv.hostPlatform.config}/lib/"; target = "/ardos/lib/"; }];
   }
 ]

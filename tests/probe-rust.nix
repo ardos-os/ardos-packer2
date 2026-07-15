@@ -21,10 +21,9 @@
       src = craneLib.cleanCargoSource ./rust-probe;
       strictDeps = true;
     }) {
-      runtimeLayoutScript = ''
-        mkdir -p "$stage/rust-probe"
-        ln -sfn "$out/bin/rust-probe" "$stage/rust-probe/rust-probe"
-      '';
+      runtimeLayout = [
+        { source = "bin/rust-probe"; target = "/rust-probe/rust-probe"; }
+      ];
     };
   };
 in {

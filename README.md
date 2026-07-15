@@ -19,12 +19,12 @@ ______________________________________________________________________
 
 ## Technical Architecture
 
-The transition from the Nix store model to the final Ardos FHS runtime model relies on three key mechanisms: **Symbolic Link Mapping**, **Linker RUNPATH Translation**, and **Shebang Rewriting**.
+The transition from the Nix store model to the final Ardos FHS runtime model relies on three key mechanisms: **Runtime Layout Mapping**, **Linker RUNPATH Translation**, and **Shebang Rewriting**.
 
 ![diagram of the process](./docs/process-whiteboard.svg)
 
 
-### 1. Symbolic Link Mapping (`mkArdosDerivation`)
+### 1. Runtime Layout Mapping (`mkArdosDerivation`)
 
 Nix store paths are treated strictly as a build-time implementation detail. Runtime locations are described declaratively by each Ardos package using `mkArdosDerivation`.
 
@@ -36,15 +36,17 @@ mkArdosDerivation {
   pname = "hellolibrary";
   version = "0.1.0";
   runtimeLayout = [
-    { source = "lib/libhellolibrary.so"; target = "/hellolibrary/libhellolibrary.so"; }
+    { source = "lib/"; target = "/hellolibrary/"; }
+    { source = "include/"; target = "/hellolibrary/include/"; }
   ];
 }
 ```
 
-During the build, this mapping is stored as metadata in the package's output directory (`$out/nix-support/ardos-layout`). The `mkRuntimeTree` helper consumes this metadata to generate a separate derivation containing a projection of how the package will
-look like inside the real Ardos OS filesystem in the form of a tree of symbolic links.
+Sources ending with `/` are **folder mappings** — all files inside the directory are automatically mapped, preserving subdirectory structure. The ld wrapper expands folder mappings on-the-fly via longest-prefix matching at link time.
 
-When the sysroot materializer constructs the final sysroot to be converted into the ROM, it follows these symlinks to assemble the files at their final target paths, checking for collisions between packages.
+The layout entries are written directly to `$out/nix-support/ardos-layout` without an intermediate symlink tree. This file is the single source of truth consumed by the linker wrapper, downstream packages, and the ROM generator.
+
+When multiple packages map to the same target path, the **last entry wins** (later entries in the layout override earlier ones).
 
 ------
 
@@ -58,9 +60,8 @@ changed just to add Ardos metadata.
 
 `ap2.init` therefore accepts an
 `externalMappings` option: a list (or a function from `crossPkgs` to a list) of
-`{ drv, runtimeLayoutScript }` entries. Each script has the same `$out` and
-`$stage` interface as `mkArdosDerivation`, but it is evaluated outside the
-derivation it describes. At link time, the setup hook only applies an external
+`{ drv, runtimeLayout }` entries. Each entry's `runtimeLayout` is written as
+`ardos-layout` lines. At link time, the setup hook only applies an external
 mapping if that `drv` is actually present in the discovered dependency closure,
 so generic mappings for packages such as libc or compiler runtime libraries do
 not leak into unrelated outputs.
@@ -71,13 +72,7 @@ ap2.init {
   externalMappings = pkgs: [
     {
       drv = pkgs.glibc;
-      runtimeLayoutScript = ''
-        for so in "$out"/lib/*.so*; do
-          [ -e "$so" ] || continue
-          mkdir -p "$stage/ardos/lib"
-          ln -sfn "$so" "$stage/ardos/lib/$(basename "$so")"
-        done
-      '';
+      runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
     }
   ];
 }
@@ -89,7 +84,7 @@ Because compiled binaries must find their shared library dependencies (like `lib
 
 To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/builder/hooks/ld-wrapper.sh](/lib/builder/hooks/ld-wrapper.sh) (injector) + [lib/builder/hooks/ld-wrapper-impl.sh](lib/builder/hooks/ld-wrapper-impl.sh) (bash wrapper) + [lib/builder/hooks/ardos_ld_translate.rs](lib/builder/hooks/ardos_ld_translate.rs) (rust script with the actual argument translation).
 
-- During package compilation, an Ardos setup hook aggregates all `runtimeLayout` maps of the package and its dependencies into a single translation file (`$ARDOS_RUNTIME_MAP`).
+- During package compilation, an Ardos setup hook aggregates all `runtimeLayout` maps of the package and its dependencies into a single translation file (`$ARDOS_RUNTIME_MAP`). Folder mappings are preserved as-is — the ld translator expands them on-the-fly via longest-prefix matching.
 - The linker wrapper intercepts all `-rpath` flags and translates them:
   - If a path matches a Nix store location in the translation map, it is replaced with the target Ardos path (e.g., `/nix/store/.../lib` ➔ `/ardos/lib`).
   - If an RPATH points to an unmapped Nix store path (like bootstrap paths), it is **stripped** to prevent store leakage.
@@ -130,7 +125,7 @@ ardosPacker.limine
 
 ### Why Limine?
 
-Limine is famous amongst hobby OS developers for it's simplicity and developer experience with it's own special protocol with the same name (formerly called stivale). But limine also supports booting linux, the ability for it to work without systemd and without bringing all of bloat of grub is what caught my attention to use it in ardos. Limine is self contained in one UEFI binary and it only requires a limine.conf which is a super easy human readable format and configurations don't go past 5 lines usually.
+Limine is famous amongst hobby OS developers for its simplicity and developer experience with it's own special protocol with the same name (formerly called stivale). But limine also supports booting linux, the ability for it to work without systemd and without bringing all of bloat of grub is what caught my attention to use it in ardos. Limine is self contained in one UEFI binary and it only requires a limine.conf which is a super easy human readable format and configurations don't go past 5 lines usually.
 
 It's the perfect bootloader for the case you don't want the user to even care what a bootloader is, it just goes past it without seeing anything, it is super fast and
 slick.
@@ -191,5 +186,4 @@ on the same code Nix OS is built on.
 
 We do have a plan to migrate over to our own derivations instead and completely break free from nixpkgs to manage the toolchain
 and build packages targetting Ardos OS, but that's not just viable right now during this experimental phase.
-
 

@@ -50,35 +50,14 @@
 
   hasGlibcPlugins = glibcPlugins != [];
 
+  # Generate external mappings file from { drv, runtimeLayout } entries.
+  # Each entry's runtimeLayout is written as ardos-layout lines prefixed by a
+  # section header so populate-map.rs can apply them per-dependency.
   mappingScriptToLayout = mapping: ''
     echo "# ardos-external-mapping ${mapping.drv}" >> "$out"
-    stage=$(mktemp -d -t ardos-external-layout-XXXXXX)
-    (
-      out=${mapping.drv} stage=$stage bash -c ${lib.escapeShellArg mapping.runtimeLayoutScript}
-
-      while IFS= read -r -d $'\0' entry; do
-        rel="''${entry#$stage/}"
-        [ "$rel" = "$entry" ] && continue
-
-        target="/$rel"
-        if [ -L "$entry" ]; then
-          pointed=$(readlink -f -- "$entry" 2>/dev/null || true)
-          if [ -n "$pointed" ] && [[ "$pointed" == "${mapping.drv}"/* ]]; then
-            src_rel="''${pointed#${mapping.drv}/}"
-          else
-            src_rel=$(readlink -- "$entry")
-          fi
-        elif [ -f "$entry" ]; then
-          echo "error: runtimeLayoutScript for ${mapping.drv} created a concrete file in ardos-layout: $entry" >&2
-          exit 1
-        else
-          continue
-        fi
-
-        printf '%s -> %s\n' "$src_rel" "$target" >> "$out"
-      done < <(find "$stage" -mindepth 1 -print0)
-    )
-    rm -rf "$stage"
+    ${lib.concatMapStrings (entry: ''
+      printf '%s -> %s\n' "${entry.source}" "${entry.target}" >> "$out"
+    '') mapping.runtimeLayout}
   '';
 
   externalMappingsFile =
@@ -86,7 +65,7 @@
     then null
     else
       buildPkgs.runCommand "ardos-external-runtime-mappings" {
-        nativeBuildInputs = [buildPkgs.coreutils buildPkgs.findutils buildPkgs.bash];
+        nativeBuildInputs = [buildPkgs.coreutils buildPkgs.bash];
       } ''
         : > "$out"
         ${lib.concatMapStringsSep "\n" mappingScriptToLayout externalMappings}
@@ -111,42 +90,58 @@ in {
         dest_path="$2"
 
         if [ ! -e "$src_path" ] && [ ! -L "$src_path" ]; then
-          echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$out}" >&2
-          exit 1
-        fi
-
-        # Runtime mappings are represented by a symlink tree. Resolve exactly
-        # one symlink level: a link to a directory copies that directory's
-        # contents, a link to a file copies the file, and a link to another
-        # symlink copies that second symlink verbatim.
-        copy_source="$src_path"
-        if [ -L "$src_path" ]; then
-          link_target=$(readlink -- "$src_path")
-          case "$link_target" in
-            /*) resolved="$link_target" ;;
-            *) resolved="$(dirname "$src_path")/$link_target" ;;
+          # Folder mappings may reference non-existent dirs (e.g. lib/ when only
+          # bin/ is installed).  Skip silently for folder mappings; error on
+          # individual files.
+          case "$src_path" in
+            */)
+              echo "warning: folder mapping source does not exist, skipping: $src_path -> ''${dest_path#$out}" >&2
+              return 0
+              ;;
+            *)
+              echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$out}" >&2
+              exit 1
+              ;;
           esac
-
-          if [ ! -e "$resolved" ] && [ ! -L "$resolved" ]; then
-            echo "error: broken Ardos runtime mapping symlink: $src_path -> $link_target" >&2
-            exit 1
-          fi
-
-          copy_source="$resolved"
-        fi
-
-        if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
-          echo "error: duplicate Ardos runtime path: ''${dest_path#$out}" >&2
-          exit 1
         fi
 
         mkdir -p "$(dirname "$dest_path")"
-        if [ -d "$copy_source" ] && [ ! -L "$copy_source" ]; then
-          mkdir -p "$dest_path"
-          cp -a --no-preserve=ownership "$copy_source"/. "$dest_path"/
-        else
-          cp -a --no-preserve=ownership "$copy_source" "$dest_path"
-        fi
+
+        # Folder mappings (trailing / on source) expand by copying contents.
+        # We must NOT use `cp -a` on directories — it preserves source mode
+        # (often 555) which seals the directory read-only in the Nix sandbox.
+        # Regular files are copied without preserving mode, then executables
+        # get chmod +x so the dynamic linker and other binaries work in proot.
+        # Symlinks are always copied with -a.
+        # Folder mappings merge into existing directories (last-wins per file)
+        # rather than replacing the whole directory.
+        case "$src_path" in
+          */)
+            while IFS= read -r -d $'\0' item; do
+              rel="''${item#$src_path}"
+              dest="$dest_path$rel"
+              if [ -d "$item" ] && [ ! -L "$item" ]; then
+                mkdir -p "$dest"
+              elif [ -L "$item" ]; then
+                mkdir -p "$(dirname "$dest")"
+                rm -f "$dest"
+                cp -a --no-preserve=ownership "$item" "$dest"
+              else
+                mkdir -p "$(dirname "$dest")"
+                rm -f "$dest"
+                cp --no-preserve=mode "$item" "$dest"
+                [ -x "$item" ] && chmod +x "$dest" || true
+              fi
+            done < <(find "$src_path" -mindepth 1 -print0)
+            ;;
+          *)
+            # Last-wins for individual files: remove destination first.
+            if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
+              rm -rf "$dest_path"
+            fi
+            cp -a --no-preserve=ownership "$src_path" "$dest_path"
+            ;;
+        esac
       }
 
       apply_layout() {
@@ -163,6 +158,14 @@ in {
             *) src_path="$store_path/$src_rel" ;;
           esac
           dest_path="$out/''${dest_abs#/}"
+
+          # Skip GNU ld scripts — they are linker inputs only and must
+          # never be materialized into the runtime ROM.
+          if [ -f "$src_path" ] && [ ! -L "$src_path" ]; then
+            case "$(head -c 4096 "$src_path" 2>/dev/null)" in
+              "/* GNU ld script"*) continue ;;
+            esac
+          fi
 
           copy_mapping "$src_path" "$dest_path"
         done < "$layout"
@@ -208,7 +211,7 @@ in {
           ${lib.concatMapStringsSep "\n" (plugin: ''
             if [ -d "${plugin}/lib" ]; then
               mkdir -p "$out/${pluginLibDir}"
-              cp -a --no-preserve=ownership "${plugin}/lib"/. "$out/${pluginLibDir}"/
+              cp -R --no-preserve=mode "${plugin}/lib"/. "$out/${pluginLibDir}"/
             fi
           '') glibcPlugins}
 

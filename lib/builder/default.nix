@@ -4,7 +4,6 @@
 #   * `rustScript` — a function that compiles inline Rust into a host-side
 #     build tool. Used by the toolchain stage to build ardos-setup-tool.
 #   * `mkArdosDerivation` — the per-package builder (see mkArdosDerivation.nix).
-#   * `mkRuntimeTree` — materialises an `ardos-layout` into a symlink tree.
 #   * `wrapDerivation` — turns a normal derivation into an Ardos derivation
 #     by attaching runtime layout metadata.
 #
@@ -24,7 +23,6 @@
       inherit crossPkgs rustScript crane externalMappings;
     })
     mkArdosDerivation
-    mkRuntimeTree
     wrapDerivation
     buildArdosRustPackage
     ;

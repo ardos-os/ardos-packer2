@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -21,8 +21,8 @@ fn nix_store_name(path: &str) -> Option<&str> {
 
 fn similar_mappings<'a>(
     unmapped: &UnmappedNixPath,
-    path_map: &'a BTreeMap<String, String>,
-) -> Vec<(&'a String, &'a String)> {
+    path_map: &'a [(String, String)],
+) -> Vec<&'a (String, String)> {
     let Some(unmapped_name) = nix_store_name(&unmapped.lookup_path) else {
         return Vec::new();
     };
@@ -53,35 +53,70 @@ fn is_dir_empty<P: AsRef<Path>>(path: P) -> bool {
     }
 }
 
+/// Find the best matching mapping for `lookup_path` using longest-prefix matching.
+/// When multiple mappings have the same prefix length, the last one wins
+/// (insertion order is preserved in the Vec).
 fn translate_mapped_path(
-    path_map: &BTreeMap<String, String>,
+    path_map: &[(String, String)],
     lookup_path: &str,
 ) -> Option<(String, String)> {
-    path_map
-        .iter()
-        .filter_map(|(nix_path, ardos_path)| {
-            if lookup_path == nix_path {
-                Some((nix_path, ardos_path, ""))
+    let mut best: Option<(usize, &str, &str)> = None;
+
+    for (nix_path, ardos_path) in path_map {
+        let matched_len = if lookup_path == nix_path {
+            nix_path.len()
+        } else {
+            // Try the prefix as-is. If it ends with / (folder mapping),
+            // also try without the trailing / to match the directory path
+            // itself (e.g. rpath ".../lib" against mapping ".../lib/").
+            let trimmed = nix_path.trim_end_matches('/');
+            let candidates: &[&str] = if trimmed != nix_path {
+                &[nix_path.as_str(), trimmed]
             } else {
-                lookup_path
-                    .strip_prefix(nix_path)
-                    .and_then(|suffix| suffix.strip_prefix('/'))
-                    .map(|suffix| (nix_path, ardos_path, suffix))
-            }
-        })
-        .max_by_key(|(nix_path, _, _)| nix_path.len())
-        .map(|(nix_path, ardos_path, suffix)| {
-            let translated = if suffix.is_empty() {
-                ardos_path.clone()
-            } else {
-                format!("{}/{}", ardos_path.trim_end_matches('/'), suffix)
+                &[nix_path.as_str()]
             };
-            (nix_path.clone(), translated)
-        })
+
+            let mut found_len = None;
+            for &prefix in candidates {
+                if let Some(suffix) = lookup_path.strip_prefix(prefix) {
+                    if suffix.is_empty() || suffix.starts_with('/') {
+                        found_len = Some(prefix.len());
+                        break;
+                    }
+                }
+            }
+
+            match found_len {
+                Some(len) => len,
+                None => continue,
+            }
+        };
+
+        // Last longest-prefix match wins: replace if strictly longer, or if
+        // equal length (last-wins semantics).
+        match best {
+            Some((prev_len, _, _)) if prev_len > matched_len => {}
+            _ => best = Some((matched_len, nix_path.as_str(), ardos_path.as_str())),
+        }
+    }
+
+    let (best_prefix_len, nix_path, ardos_path) = best?;
+
+    let suffix = if lookup_path.len() <= best_prefix_len {
+        ""
+    } else {
+        &lookup_path[best_prefix_len + 1..]
+    };
+    let translated = if suffix.is_empty() {
+        ardos_path.to_string()
+    } else {
+        format!("{}/{}", ardos_path.trim_end_matches('/'), suffix)
+    };
+    Some((nix_path.to_string(), translated))
 }
 
 fn translate_rpath(
-    path_map: &BTreeMap<String, String>,
+    path_map: &[(String, String)],
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
@@ -102,7 +137,9 @@ fn translate_rpath(
             used_mappings.insert(matched_path);
             eprintln!("Translating library {clean_str} -> {translated}");
             translated_components.push(translated);
-        } else if clean_str.starts_with("/nix/store/") {
+        } else if clean_str.starts_with("/nix/store/")
+            && !is_dir_empty(&clean_str)
+        {
             unmapped_nix_paths.push(UnmappedNixPath {
                 kind: "rpath",
                 path: clean_str.clone(),
@@ -130,8 +167,9 @@ fn translate_rpath(
     }
     Ok(())
 }
+
 fn translate_dynamic_linker(
-    path_map: &BTreeMap<String, String>,
+    path_map: &[(String, String)],
     flag: &str,
     val: &str,
     stdout: &mut impl Write,
@@ -183,8 +221,9 @@ fn main() -> io::Result<()> {
     let map_path = &args[2];
     let input_args = &args[3..];
 
-    // Load path mappings
-    let mut path_map = BTreeMap::new();
+    // Load path mappings. Vec preserves insertion order so that later entries
+    // (which override earlier ones for the same prefix length) win.
+    let mut path_map: Vec<(String, String)> = Vec::new();
     if let Ok(file) = File::open(map_path) {
         let reader = BufReader::new(file);
         for line in reader.lines() {
@@ -195,7 +234,9 @@ fn main() -> io::Result<()> {
             if let Some(pos) = line.find(" -> ") {
                 let nix_path = line[..pos].trim().to_string();
                 let ardos_path = line[pos + 4..].trim().to_string();
-                path_map.insert(nix_path, ardos_path);
+                // Remove any earlier entry with the same nix_path (last wins).
+                path_map.retain(|(k, _)| k != &nix_path);
+                path_map.push((nix_path, ardos_path));
             }
         }
     }
@@ -283,17 +324,20 @@ fn main() -> io::Result<()> {
             let similar = similar_mappings(unmapped, &path_map);
             if !similar.is_empty() {
                 eprintln!("    similar mappings with the same package name:");
-                for (nix_path, ardos_path) in similar {
+                for (nix_path, ardos_path) in &similar {
                     eprintln!("      * {} -> {}", nix_path, ardos_path);
                 }
             }
         }
         eprintln!("\n             Runtime mappings that were loaded but not used:");
         let mut unused_count = 0usize;
-        for (nix_path, ardos_path) in &path_map {
+        for (nix_path, _) in &path_map {
             if !used_mappings.contains(nix_path) {
                 unused_count += 1;
-                eprintln!("  - {} -> {}", nix_path, ardos_path);
+                // Find the ardos_path for display
+                if let Some((_, ardos_path)) = path_map.iter().find(|(k, _)| k == nix_path) {
+                    eprintln!("  - {} -> {}", nix_path, ardos_path);
+                }
             }
         }
         if unused_count == 0 {
@@ -310,7 +354,7 @@ fn main() -> io::Result<()> {
 mod tests {
     use super::*;
 
-    fn map(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+    fn map(entries: &[(&str, &str)]) -> Vec<(String, String)> {
         entries
             .iter()
             .map(|(from, to)| ((*from).to_string(), (*to).to_string()))
@@ -361,6 +405,33 @@ mod tests {
             Some((
                 "/nix/store/hash-pkg/lib".to_string(),
                 "/ardos/lib/ld.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn last_wins_for_same_length_prefix() {
+        let mappings = map(&[
+            ("/nix/store/hash-pkg/lib", "/old/lib"),
+            ("/nix/store/hash-pkg/lib", "/ardos/lib"),
+        ]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib/ld.so"),
+            Some((
+                "/nix/store/hash-pkg/lib".to_string(),
+                "/ardos/lib/ld.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn folder_mapping_expands_via_prefix() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib/", "/ardos/lib/")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib/libfoo.so"),
+            Some((
+                "/nix/store/hash-pkg/lib/".to_string(),
+                "/ardos/lib/libfoo.so".to_string()
             ))
         );
     }

@@ -71,7 +71,7 @@ in rec {
     instance = rec {
       inherit crossPkgs kernel initrd limine vm;
       buildPkgs = toolchain.buildPkgs;
-      inherit (builder) mkArdosDerivation mkRuntimeTree wrapDerivation buildArdosRustPackage;
+      inherit (builder) mkArdosDerivation wrapDerivation buildArdosRustPackage;
 
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
@@ -85,7 +85,7 @@ in rec {
       scope =
         crossPkgs
         // {
-          inherit mkArdosDerivation mkRuntimeTree wrapDerivation buildArdosRustPackage;
+          inherit mkArdosDerivation wrapDerivation buildArdosRustPackage;
           ap2 = instance;
         };
       in

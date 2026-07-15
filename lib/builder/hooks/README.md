@@ -22,7 +22,15 @@ The hook consumes mappings of build-time directories to runtime directories:
 
 ```text
 /nix/store/.../lib -> /ardos/lib
+/nix/store/.../lib/ -> /ardos/lib/
 ```
+
+Folder mappings (trailing `/`) are expanded on-the-fly via longest-prefix
+matching: `/nix/store/.../lib/libfoo.so` matches prefix `/nix/store/.../lib/`
+and translates to `/ardos/lib/libfoo.so`.
+
+When multiple mappings have the same prefix length, the last one wins (insertion
+order is preserved in the runtime map).
 
 For each translated RPATH, it also adds an `-rpath-link` pointing at the original
 Nix-store directory so the linker can still resolve libraries during the build.

@@ -4,13 +4,10 @@ mkArdosDerivation {
   version = "0.1.0";
   src = ./src;
 
-  dontPatchELF = true;
-  dontShrinkRpath = true;
-
-  runtimeLayoutScript = ''
-    mkdir -p "$stage/glibc-test"
-    ln -sfn "$out/bin/glibc-test" "$stage/glibc-test/glibc-test"
-  '';
+  runtimeLayout = [
+    { source = "bin/glibc-test"; target = "/glibc-test/glibc-test"; }
+    { source = "lib/"; target = "/glibc-test/lib/"; }
+  ];
 
   buildPhase = ''
     runHook preBuild

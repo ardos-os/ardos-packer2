@@ -5,11 +5,10 @@ mkArdosDerivation {
 
   dontUnpack = true;
 
-  runtimeLayoutScript = ''
-    mkdir -p "$stage/etc"
-    ln -sfn "$out/etc/passwd" "$stage/etc/passwd"
-    ln -sfn "$out/etc/group" "$stage/etc/group"
-  '';
+  runtimeLayout = [
+    { source = "etc/passwd"; target = "/etc/passwd"; }
+    { source = "etc/group"; target = "/etc/group"; }
+  ];
 
   dontBuild = true;
 
