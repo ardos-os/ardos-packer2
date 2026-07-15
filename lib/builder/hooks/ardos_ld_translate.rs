@@ -318,6 +318,20 @@ fn main() -> io::Result<()> {
         }
     }
 
+    // Emit -rpath-link for ALL mapped directories so the linker can resolve
+    // transitive dependencies (e.g. libgudev -> libudev, glib -> pcre2/libffi).
+    // Without this, ld.bfd fails with "not found (try using -rpath or
+    // -rpath-link)" for libraries that are NEEDED by direct dependencies but
+    // aren't themselves direct buildInputs.
+    for (nix_path, _) in &path_map {
+        if nix_path.starts_with("/nix/store/") && !is_dir_empty(nix_path) {
+            stdout.write_all(b"-rpath-link")?;
+            stdout.write_all(b"\0")?;
+            stdout.write_all(nix_path.as_bytes())?;
+            stdout.write_all(b"\0")?;
+        }
+    }
+
     if !unmapped_nix_paths.is_empty() {
         eprintln!(
             "\n========================================================================\n\
