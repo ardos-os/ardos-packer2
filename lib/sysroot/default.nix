@@ -6,6 +6,7 @@
   toolchainConfig ? {},
 }: let
   lib = buildPkgs.lib;
+  rustScript = import ../builder/rustScript.nix {inherit buildPkgs;};
 
   # Determine where glibc looks for libraries and config at runtime.
   glibcRuntimePrefix = (toolchainConfig.glibc or {}).runtimePrefix or null;
@@ -50,9 +51,10 @@
 
   hasGlibcPlugins = glibcPlugins != [];
 
+  # Compile the sysroot population tool from Rust.
+  populateSysroot = rustScript "populate-sysroot" ./populate-sysroot.rs;
+
   # Generate external mappings file from { drv, runtimeLayout } entries.
-  # Each entry's runtimeLayout is written as ardos-layout lines prefixed by a
-  # section header so populate-map.rs can apply them per-dependency.
   mappingScriptToLayout = mapping: ''
     echo "# ardos-external-mapping ${mapping.drv}" >> "$out"
     ${lib.concatMapStrings (entry: ''
@@ -62,7 +64,7 @@
 
   externalMappingsFile =
     if externalMappings == []
-    then null
+    then "-"
     else
       buildPkgs.runCommand "ardos-external-runtime-mappings" {
         nativeBuildInputs = [buildPkgs.coreutils buildPkgs.bash];
@@ -78,132 +80,12 @@ in {
     closure = buildPkgs.closureInfo {rootPaths = includePackages;};
   in
     buildPkgs.runCommand name {
-      nativeBuildInputs = [
-        buildPkgs.coreutils
-        buildPkgs.findutils
-      ];
+      nativeBuildInputs = [buildPkgs.coreutils populateSysroot];
     } ''
       work="$PWD/sysroot"
       mkdir -p "$work"
 
-      copy_mapping() {
-        src_path="$1"
-        dest_path="$2"
-
-        if [ ! -e "$src_path" ] && [ ! -L "$src_path" ]; then
-          case "$src_path" in
-            */)
-              echo "warning: folder mapping source does not exist, skipping: $src_path -> ''${dest_path#$work}" >&2
-              return 0
-              ;;
-            *)
-              echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$work}" >&2
-              exit 1
-              ;;
-          esac
-        fi
-
-        dest_dir="$(dirname "$dest_path")"
-        mkdir -p "$dest_dir"
-        chmod u+w "$dest_dir"
-
-        case "$src_path" in
-          */)
-            while IFS= read -r -d $'\0' item; do
-              rel="''${item#$src_path}"
-              dest="$dest_path$rel"
-              if [ -d "$item" ] && [ ! -L "$item" ]; then
-                mkdir -p "$dest"
-                chmod u+w "$dest"
-              elif [ -L "$item" ]; then
-                dest_dir="$(dirname "$dest")"
-                mkdir -p "$dest_dir"
-                chmod u+w "$dest_dir"
-                rm -f "$dest"
-                cp -a --no-preserve=ownership "$item" "$dest"
-              else
-                dest_dir="$(dirname "$dest")"
-                mkdir -p "$dest_dir"
-                chmod u+w "$dest_dir"
-                rm -f "$dest"
-                cp --no-preserve=mode "$item" "$dest"
-                [ -x "$item" ] && chmod +x "$dest" || true
-              fi
-            done < <(find "$src_path" -mindepth 1 -print0)
-            ;;
-          *)
-            if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
-              dest_dir="$(dirname "$dest_path")"
-              chmod u+w "$dest_dir"
-              rm -rf "$dest_path"
-            fi
-            cp -a --no-preserve=ownership "$src_path" "$dest_path"
-            ;;
-        esac
-      }
-
-      apply_layout() {
-        store_path="$1"
-        layout="$2"
-
-        while IFS= read -r line || [ -n "$line" ]; do
-          case "$line" in ""|\#*) continue ;; esac
-
-          src_rel="''${line%% -> *}"
-          dest_abs="''${line#* -> }"
-
-          case "$dest_abs" in
-            /dev/null) continue ;;
-          esac
-
-          case "$src_rel" in
-            /*) src_path="$src_rel" ;;
-            *) src_path="$store_path/$src_rel" ;;
-          esac
-          dest_path="$work/''${dest_abs#/}"
-
-          if [ -f "$src_path" ] && [ ! -L "$src_path" ]; then
-            case "$(head -c 4096 "$src_path" 2>/dev/null)" in
-              "/* GNU ld script"*) continue ;;
-            esac
-          fi
-
-          copy_mapping "$src_path" "$dest_path"
-        done < "$layout"
-      }
-
-      while IFS= read -r store_path; do
-        layout="$store_path/nix-support/ardos-layout"
-        [ -f "$layout" ] || continue
-        apply_layout "$store_path" "$layout"
-      done < ${closure}/store-paths
-
-      ${lib.optionalString (externalMappingsFile != null) ''
-        active_base=""
-        active_applies=0
-        while IFS= read -r line || [ -n "$line" ]; do
-          case "$line" in
-            "# ardos-external-mapping "*)
-              active_base="''${line#\# ardos-external-mapping }"
-              if grep -Fxq "$active_base" ${closure}/store-paths; then
-                active_applies=1
-              else
-                active_applies=0
-              fi
-              continue
-              ;;
-          esac
-
-          [ "$active_applies" = 1 ] || continue
-          [ -n "$active_base" ] || continue
-          case "$line" in ""|\#*) continue ;; esac
-
-          tmp_layout=$(mktemp)
-          printf '%s\n' "$line" > "$tmp_layout"
-          apply_layout "$active_base" "$tmp_layout"
-          rm -f "$tmp_layout"
-        done < ${externalMappingsFile}
-      ''}
+      populate-sysroot ${closure} ${externalMappingsFile} "$work"
 
       ${lib.optionalString hasGlibcPlugins ''
         if grep -Fxq "${crossPkgs.glibc}" ${closure}/store-paths; then
