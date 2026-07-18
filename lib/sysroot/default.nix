@@ -83,23 +83,21 @@ in {
         buildPkgs.findutils
       ];
     } ''
-      mkdir -p "$out"
+      work="$PWD/sysroot"
+      mkdir -p "$work"
 
       copy_mapping() {
         src_path="$1"
         dest_path="$2"
 
         if [ ! -e "$src_path" ] && [ ! -L "$src_path" ]; then
-          # Folder mappings may reference non-existent dirs (e.g. lib/ when only
-          # bin/ is installed).  Skip silently for folder mappings; error on
-          # individual files.
           case "$src_path" in
             */)
-              echo "warning: folder mapping source does not exist, skipping: $src_path -> ''${dest_path#$out}" >&2
+              echo "warning: folder mapping source does not exist, skipping: $src_path -> ''${dest_path#$work}" >&2
               return 0
               ;;
             *)
-              echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$out}" >&2
+              echo "error: broken Ardos runtime mapping: $src_path -> ''${dest_path#$work}" >&2
               exit 1
               ;;
           esac
@@ -107,14 +105,6 @@ in {
 
         mkdir -p "$(dirname "$dest_path")"
 
-        # Folder mappings (trailing / on source) expand by copying contents.
-        # We must NOT use `cp -a` on directories — it preserves source mode
-        # (often 555) which seals the directory read-only in the Nix sandbox.
-        # Regular files are copied without preserving mode, then executables
-        # get chmod +x so the dynamic linker and other binaries work in proot.
-        # Symlinks are always copied with -a.
-        # Folder mappings merge into existing directories (last-wins per file)
-        # rather than replacing the whole directory.
         case "$src_path" in
           */)
             while IFS= read -r -d $'\0' item; do
@@ -135,7 +125,6 @@ in {
             done < <(find "$src_path" -mindepth 1 -print0)
             ;;
           *)
-            # Last-wins for individual files: remove destination first.
             if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
               rm -rf "$dest_path"
             fi
@@ -154,9 +143,6 @@ in {
           src_rel="''${line%% -> *}"
           dest_abs="''${line#* -> }"
 
-          # Special target /dev/null means "exclude from ROM".  This lets
-          # packages override a recursive folder mapping by excluding specific
-          # files (e.g. lib/sensitive.so -> /dev/null).
           case "$dest_abs" in
             /dev/null) continue ;;
           esac
@@ -165,10 +151,8 @@ in {
             /*) src_path="$src_rel" ;;
             *) src_path="$store_path/$src_rel" ;;
           esac
-          dest_path="$out/''${dest_abs#/}"
+          dest_path="$work/''${dest_abs#/}"
 
-          # Skip GNU ld scripts — they are linker inputs only and must
-          # never be materialized into the runtime ROM.
           if [ -f "$src_path" ] && [ ! -L "$src_path" ]; then
             case "$(head -c 4096 "$src_path" 2>/dev/null)" in
               "/* GNU ld script"*) continue ;;
@@ -212,21 +196,21 @@ in {
         done < ${externalMappingsFile}
       ''}
 
-      # --- glibc plugin assembly ---
-      # Only apply glibc plugins if glibc itself is in the sysroot closure.
       ${lib.optionalString hasGlibcPlugins ''
         if grep -Fxq "${crossPkgs.glibc}" ${closure}/store-paths; then
           ${lib.concatMapStringsSep "\n" (plugin: ''
             if [ -d "${plugin}/lib" ]; then
-              mkdir -p "$out/${pluginLibDir}"
-              cp -R --no-preserve=mode "${plugin}/lib"/. "$out/${pluginLibDir}"/
+              mkdir -p "$work/${pluginLibDir}"
+              cp -R --no-preserve=mode "${plugin}/lib"/. "$work/${pluginLibDir}"/
             fi
           '') glibcPlugins}
 
 
-          mkdir -p "$out/${glibcEtcDir}"
-          cp ${nsswitchConf} "$out/${glibcEtcDir}/nsswitch.conf"
+          mkdir -p "$work/${glibcEtcDir}"
+          cp ${nsswitchConf} "$work/${glibcEtcDir}/nsswitch.conf"
         fi
       ''}
+
+      cp -a "$work"/. "$out"/
     '';
 }
