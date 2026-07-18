@@ -103,7 +103,9 @@ in {
           esac
         fi
 
-        mkdir -p "$(dirname "$dest_path")"
+        dest_dir="$(dirname "$dest_path")"
+        mkdir -p "$dest_dir"
+        chmod u+w "$dest_dir"
 
         case "$src_path" in
           */)
@@ -112,12 +114,17 @@ in {
               dest="$dest_path$rel"
               if [ -d "$item" ] && [ ! -L "$item" ]; then
                 mkdir -p "$dest"
+                chmod u+w "$dest"
               elif [ -L "$item" ]; then
-                mkdir -p "$(dirname "$dest")"
+                dest_dir="$(dirname "$dest")"
+                mkdir -p "$dest_dir"
+                chmod u+w "$dest_dir"
                 rm -f "$dest"
                 cp -a --no-preserve=ownership "$item" "$dest"
               else
-                mkdir -p "$(dirname "$dest")"
+                dest_dir="$(dirname "$dest")"
+                mkdir -p "$dest_dir"
+                chmod u+w "$dest_dir"
                 rm -f "$dest"
                 cp --no-preserve=mode "$item" "$dest"
                 [ -x "$item" ] && chmod +x "$dest" || true
@@ -126,6 +133,8 @@ in {
             ;;
           *)
             if [ -e "$dest_path" ] || [ -L "$dest_path" ]; then
+              dest_dir="$(dirname "$dest_path")"
+              chmod u+w "$dest_dir"
               rm -rf "$dest_path"
             fi
             cp -a --no-preserve=ownership "$src_path" "$dest_path"
