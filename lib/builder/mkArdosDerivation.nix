@@ -128,6 +128,23 @@ in rec {
           if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
             cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
           fi
+
+          echo "[Ardos Sanity] Checking for nix store references in ${pname} output..."
+          store_hits=""
+          # Text files: grep -n shows file:line:content
+          store_hits=$(grep -r -n -I --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null || true)
+          # Binary files: extract printable strings and grep for store paths
+          for f in $(grep -r -l --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null); do
+            grep -qI '' "$f" 2>/dev/null && continue
+            str_hits=$(strings "$f" 2>/dev/null | grep '/nix/store' 2>/dev/null || true)
+            [ -n "$str_hits" ] && store_hits="$store_hits
+[Binary] ${f}:
+${str_hits}"
+          done
+          if [ -n "$store_hits" ]; then
+            echo "[Ardos Sanity] WARNING: found nix store references in ${pname} output:" >&2
+            echo "$store_hits" | sed 's/^/  /' >&2
+          fi
         '';
     });
 
@@ -229,6 +246,21 @@ in rec {
             if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
               cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
             fi
+
+            echo "[Ardos Sanity] Checking for nix store references in ${pname} output..."
+            store_hits=""
+            store_hits=$(grep -r -n -I --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null || true)
+            for f in $(grep -r -l --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null); do
+              grep -qI '' "$f" 2>/dev/null && continue
+              str_hits=$(strings "$f" 2>/dev/null | grep '/nix/store' 2>/dev/null || true)
+              [ -n "$str_hits" ] && store_hits="$store_hits
+[Binary] ${f}:
+${str_hits}"
+            done
+            if [ -n "$store_hits" ]; then
+              echo "[Ardos Sanity] WARNING: found nix store references in ${pname} output:" >&2
+              echo "$store_hits" | sed 's/^/  /' >&2
+            fi
           '';
       });
   in
@@ -297,6 +329,21 @@ in rec {
 
             if [ -n "''${ARDOS_RUNTIME_MAP:-}" ] && [ -f "$ARDOS_RUNTIME_MAP" ]; then
               cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
+            fi
+
+            echo "[Ardos Sanity] Checking for nix store references in ${pname} output..."
+            store_hits=""
+            store_hits=$(grep -r -n -I --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null || true)
+            for f in $(grep -r -l --exclude-dir=nix-support '/nix/store' "$out" 2>/dev/null); do
+              grep -qI '' "$f" 2>/dev/null && continue
+              str_hits=$(strings "$f" 2>/dev/null | grep '/nix/store' 2>/dev/null || true)
+              [ -n "$str_hits" ] && store_hits="$store_hits
+[Binary] ${f}:
+${str_hits}"
+            done
+            if [ -n "$store_hits" ]; then
+              echo "[Ardos Sanity] WARNING: found nix store references in ${pname} output:" >&2
+              echo "$store_hits" | sed 's/^/  /' >&2
             fi
           '';
       });
