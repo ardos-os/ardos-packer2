@@ -43,6 +43,11 @@ fn expand_layout(
             store_path.join(src_rel)
         };
 
+        // Never map nix-support — it contains Nix build metadata only.
+        if src_path.ends_with("nix-support") || src_path.file_name().is_some_and(|n| n == "nix-support") {
+            continue;
+        }
+
         // Skip GNU ld scripts
         if src_path.is_file() && !src_path.is_symlink() {
             if let Ok(content) = fs::read(&src_path) {
@@ -84,6 +89,10 @@ fn expand_dir(
                 continue;
             };
             let path = entry.path();
+            // Never map nix-support — it contains Nix build metadata only.
+            if path.file_name().is_some_and(|n| n == "nix-support") {
+                continue;
+            }
             if path.is_dir() && !path.is_symlink() {
                 stack.push(path);
             } else {
