@@ -10,6 +10,16 @@
   extraMeta ? {},
 }:
 
+let
+  targetCpu = crossPkgs.stdenv.hostPlatform.cpu;
+
+  kernelImageByArch = {
+    x86_64  = { path = "arch/x86/boot/bzImage"; outputName = "bzImage"; };
+    aarch64 = { path = "arch/arm64/boot/Image";   outputName = "Image"; };
+  };
+  kernelImage = kernelImageByArch.${targetCpu}
+    or (throw "kernel.nix: unsupported target CPU ${targetCpu}");
+in
 buildPkgs.stdenv.mkDerivation {
   pname = "linux";
   inherit version src;
@@ -37,7 +47,7 @@ buildPkgs.stdenv.mkDerivation {
     runHook preConfigure
 
     # Start from arch defconfig (establishes Kconfig tree)
-    make defconfig
+    make ARCH=${targetCpu} defconfig
 
     # Override with user's config via sed (handles both partial and full configs)
     while IFS='=' read -r key value; do
@@ -70,21 +80,21 @@ buildPkgs.stdenv.mkDerivation {
     done < ${configFile}
 
     # Resolve any inconsistencies introduced by the overrides
-    make olddefconfig
+    make ARCH=${targetCpu} olddefconfig
 
     runHook postConfigure
   '';
 
   buildPhase = ''
     runHook preBuild
-    make -j"$NIX_BUILD_CORES" KBUILD_BUILD_TIMEOUT=0
+    make ARCH=${targetCpu} -j"$NIX_BUILD_CORES" KBUILD_BUILD_TIMEOUT=0
     runHook postBuild
   '';
 
   installPhase = ''
     runHook preInstall
     mkdir -p $out
-    cp arch/x86/boot/bzImage $out/bzImage
+    cp ${kernelImage.path} $out/bzImage
     runHook postInstall
   '';
 
@@ -92,6 +102,6 @@ buildPkgs.stdenv.mkDerivation {
 
   meta = {
     description = "Ardos OS Linux kernel";
-    platforms = lib.platforms.x86_64;
+    platforms = lib.platforms.x86_64 ++ lib.platforms.aarch64;
   } // extraMeta;
 }

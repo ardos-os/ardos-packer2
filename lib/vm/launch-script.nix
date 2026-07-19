@@ -1,6 +1,7 @@
 {
   buildPkgs,
   lib,
+  targetCpu,
 }:
 {
   ovmf-code,
@@ -15,9 +16,33 @@
   limine,
   rom,
 }:
-let 
+let
 
-  priv-setup  = import ./priv-setup.nix { inherit buildPkgs kernel initrd limine rom kernel-params; };
+  priv-setup  = import ./priv-setup.nix { inherit buildPkgs kernel initrd limine rom kernel-params targetCpu; };
+
+  qemuBinary = {
+    x86_64  = "qemu-system-x86_64";
+    aarch64 = "qemu-system-aarch64";
+  }.${targetCpu}
+    or (throw "launch-script.nix: unsupported target CPU ${targetCpu}");
+
+  qemuMachine = {
+    x86_64  = ''"type=pc-q35-11.0,accel=kvm,memory-backend=pc.ram,usb=off,vmport=off,smm=on,hpet=off,acpi=on"'';
+    aarch64 = ''"type=virt,accel=kvm,gic-version=3"'';
+  }.${targetCpu}
+    or (throw "launch-script.nix: unsupported target CPU ${targetCpu}");
+
+  qemuExtraDevices = {
+    x86_64  = ''-vga none -device virtio-vga-gl,max_outputs=1'';
+    aarch64 = ''-device virtio-gpu-gl'';
+  }.${targetCpu}
+    or (throw "launch-script.nix: unsupported target CPU ${targetCpu}");
+
+  qemuCpuFlag = {
+    x86_64  = ''-cpu host'';
+    aarch64 = ''-cpu cortex-a72'';
+  }.${targetCpu}
+    or (throw "launch-script.nix: unsupported target CPU ${targetCpu}");
 in
 buildPkgs.writeShellApplication {
   name = "ardos-vm-run";
@@ -84,7 +109,7 @@ buildPkgs.writeShellApplication {
     export LD_LIBRARY_PATH="${buildPkgs.mesa}/lib:''${LD_LIBRARY_PATH:-}"
 
     # shellcheck disable=SC2086
-    qemu-system-x86_64 -enable-kvm -cpu host -smp "$SMP" -machine "type=pc-q35-11.0,accel=kvm,memory-backend=pc.ram,usb=off,vmport=off,smm=on,hpet=off,acpi=on" -object "memory-backend-ram,id=pc.ram,size=$MEMORY" -vga none -device virtio-vga-gl,max_outputs=1 -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d
+    ${qemuBinary} -enable-kvm ${qemuCpuFlag} -smp "$SMP" -machine ${qemuMachine} -object "memory-backend-ram,id=pc.ram,size=$MEMORY" ${qemuExtraDevices} -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d
 
     QEMU_EXIT=$?
 
@@ -98,6 +123,6 @@ buildPkgs.writeShellApplication {
 
   meta = {
     description = "Ardos OS VM runner — builds system disk and launches QEMU";
-    platforms = lib.platforms.x86_64;
+    platforms = lib.platforms.x86_64 ++ lib.platforms.aarch64;
   };
 }

@@ -5,15 +5,23 @@
   limine,
   rom,
   kernel-params ? "",
+  targetCpu ? "x86_64",
 }:
 
+let
+  efiBinaryName = {
+    x86_64  = "BOOTX64.EFI";
+    aarch64 = "BOOTAA64.EFI";
+  }.${targetCpu}
+    or (throw "priv-setup.nix: unsupported target CPU ${targetCpu}");
+in
 buildPkgs.writeShellScript "ardos-vm-priv-setup" ''
   set -xeuo pipefail
 
   # Baked at build time
   KERNEL="${kernel}/bzImage"
   INITRD="${initrd}/initrd.img"
-  LIMINE="${limine}/BOOTX64.EFI"
+  LIMINE="${limine}/${efiBinaryName}"
   ROM="${rom}"
 
   # Passed via environment by ardos-vm-run
@@ -57,7 +65,7 @@ buildPkgs.writeShellScript "ardos-vm-priv-setup" ''
   mkdir -p "$MNT/EFI/BOOT"
   cp "$KERNEL" "$MNT/vmlinuz"
   cp "$INITRD" "$MNT/initramfs.img"
-  cp "$LIMINE" "$MNT/EFI/BOOT/BOOTX64.EFI"
+  cp "$LIMINE" "$MNT/EFI/BOOT/${efiBinaryName}"
 
   USER_PARTUUID=$(blkid -s PARTUUID -o value /dev/nbd1p1 2>/dev/null || echo "")
   if [ -n "$USER_PARTUUID" ]; then

@@ -1,6 +1,7 @@
 {
   buildPkgs,
   crane ? null,
+  crossPkgs ? null,
 }:
 let
   inherit (buildPkgs) stdenvNoCC cpio gzip;
@@ -35,12 +36,22 @@ in {
     then throw "ardosPacker.initrd.fromRustBinary requires `crane` to be passed to ardosPacker.init ()"
     else src:
     let
-      muslPkgs = buildPkgs.pkgsCross.musl64;
-      craneLib = crane.mkLib muslPkgs;
+      targetCpu = if crossPkgs != null
+        then crossPkgs.stdenv.hostPlatform.cpu
+        else "x86_64";
+
+      muslCrossTarget = {
+        x86_64  = { pkgs = buildPkgs.pkgsCross.musl64;                       rustTarget = "x86_64-unknown-linux-musl"; };
+        aarch64 = { pkgs = buildPkgs.pkgsCross.aarch64-multiplatform-musl;     rustTarget = "aarch64-unknown-linux-musl"; };
+      };
+      mc = muslCrossTarget.${targetCpu}
+        or (throw "initrd.nix: unsupported target CPU for musl cross-compilation: ${targetCpu}");
+
+      craneLib = crane.mkLib mc.pkgs;
       rustBin = craneLib.buildPackage {
         src = craneLib.cleanCargoSource src;
         strictDeps = true;
-        CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
+        CARGO_BUILD_TARGET = mc.rustTarget;
         RUSTFLAGS = "-C target-feature=+crt-static";
       };
     in

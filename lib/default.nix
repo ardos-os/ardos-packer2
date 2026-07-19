@@ -62,8 +62,8 @@ in rec {
 
     # Instance-level building blocks (not VM-specific)
     kernel  = import ./kernel.nix { inherit buildPkgs lib crossPkgs; };
-    limine  = import ./limine.nix { inherit buildPkgs lib; };
-    initrd  = import ./initrd.nix { inherit buildPkgs crane; };
+    limine  = import ./limine.nix { inherit buildPkgs lib crossPkgs; };
+    initrd  = import ./initrd.nix { inherit buildPkgs crane crossPkgs; };
     vm = import ./vm {
       inherit buildPkgs lib crossPkgs kernel limine;
     };

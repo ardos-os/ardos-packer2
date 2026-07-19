@@ -14,8 +14,9 @@
   kernel,
   limine,
 }: let
+  targetCpu = crossPkgs.stdenv.hostPlatform.cpu;
   ovmf        = import ./ovmf.nix { inherit buildPkgs; };
-  launch      = import ./launch-script.nix { inherit buildPkgs lib; };
+  launch      = import ./launch-script.nix { inherit buildPkgs lib targetCpu; };
 in {
   inherit ovmf kernel limine;
 
