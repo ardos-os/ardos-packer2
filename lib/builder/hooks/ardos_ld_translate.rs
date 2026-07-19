@@ -249,8 +249,12 @@ fn main() -> io::Result<()> {
     }
 
     let mut stdout = io::stdout();
-    stdout.write_all(b"--copy-dt-needed-entries")?;
-    stdout.write_all(b"\0")?;
+    // NOTE: We intentionally do NOT emit --copy-dt-needed-entries here.
+    // That flag forces ld.bfd to recursively resolve ALL transitive shared
+    // library dependencies at link time, which is impossible for large
+    // dependency trees (e.g. libwacom→glib→libffi→...).  The runtime
+    // dynamic linker (ld.so) resolves transitive DT_NEEDED entries anyway,
+    // so this is only a link-time verification overhead.
     let mut unmapped_nix_paths = Vec::new();
     let mut used_mappings = BTreeSet::new();
     let mut i = 0;
