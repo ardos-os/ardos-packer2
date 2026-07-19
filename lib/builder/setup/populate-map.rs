@@ -4,6 +4,40 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
+fn dedup_push(mappings: &mut Vec<(String, String)>, key: String, value: String) {
+    mappings.retain(|(k, _)| k != &key);
+    mappings.push((key, value));
+}
+
+/// Validate the raw source and target of a layout line.
+/// Source must be relative; target must be absolute.
+fn validate_layout_pair(src_rel: &str, dest: &str) -> io::Result<()> {
+    if src_rel.starts_with('/') {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("layout source must be relative, got absolute path: {src_rel}"),
+        ));
+    }
+    if !dest.starts_with('/') {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("layout target must be absolute, got relative path: {dest}"),
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve a layout source relative to `base_dir` into an absolute path
+/// suitable for the runtime map.  A source of `"."` or `"./"` means the
+/// package root itself and resolves to `base_dir/` (folder mapping).
+fn resolve_source(base_dir: &str, src_rel: &str) -> String {
+    if src_rel == "." || src_rel == "./" {
+        format!("{base_dir}/")
+    } else {
+        Path::new(base_dir).join(src_rel).display().to_string()
+    }
+}
+
 fn is_debug() -> bool {
     env::var("NIX_DEBUG")
         .unwrap_or_default()
@@ -57,19 +91,33 @@ fn main() -> io::Result<()> {
     let out = env::var("out").unwrap_or_default();
     let mut map_file = OpenOptions::new().append(true).open(runtime_map_path)?;
 
-    // Process a single layout line and write it to the runtime map.
+    // Collect all layout mappings in a Vec, preserving insertion order.
+    // When two entries map the same source path, the later one wins
+    // (last-wins semantics: remove the old entry, append the new one).
+    let mut mappings: Vec<(String, String)> = Vec::new();
+
+    // Process a single layout line and collect it into the mappings vec.
     // Lines are raw entries like "lib/ -> /ardos/lib/" or "lib/foo.so -> /ardos/lib/foo.so".
     // Folder mappings (trailing /) are preserved as-is — the ld translator
     // expands them on-the-fly via longest-prefix matching.
-    let process_layout_line = |line: &str, base_dir: &str, w: &mut File| -> io::Result<()> {
+    let mut process_layout_line = |line: &str, base_dir: &str| -> io::Result<()> {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             return Ok(());
         }
         if let Some((src_rel, dest_path)) = trimmed.split_once(" -> ") {
-            let src_path = Path::new(base_dir).join(src_rel.trim());
-            let dest_path = Path::new(dest_path.trim());
-            writeln!(w, "{} -> {}", src_path.display(), dest_path.display())?;
+            let src_rel = src_rel.trim();
+            let dest_raw = dest_path.trim();
+
+            validate_layout_pair(src_rel, dest_raw)?;
+
+            let src_path = resolve_source(base_dir, src_rel);
+            let dest_path = Path::new(dest_raw);
+            dedup_push(
+                &mut mappings,
+                src_path,
+                dest_path.display().to_string(),
+            );
         }
         Ok(())
     };
@@ -87,7 +135,7 @@ fn main() -> io::Result<()> {
                 eprintln!("[Ardos Setup] Adding current package layout from ARDOS_CURRENT_PACKAGE_LAYOUT");
             }
             for line in layout.lines() {
-                process_layout_line(line, &out, &mut map_file)?;
+                process_layout_line(line, &out)?;
             }
         }
     }
@@ -208,7 +256,7 @@ fn main() -> io::Result<()> {
             let file = File::open(&layout_file)?;
             let reader = BufReader::new(file);
             for line in reader.lines() {
-                process_layout_line(&line?, p.to_str().unwrap_or(""), &mut map_file)?;
+                process_layout_line(&line?, p.to_str().unwrap_or(""))?;
             }
         }
     }
@@ -265,7 +313,6 @@ fn main() -> io::Result<()> {
                             process_layout_line(
                                 trimmed,
                                 base.to_str().unwrap_or(""),
-                                &mut map_file,
                             )?;
                         }
                     }
@@ -274,6 +321,191 @@ fn main() -> io::Result<()> {
         }
     }
 
-    eprintln!("[Ardos Setup] populate-map: ingested ardos-layout from {layouts_seen} dependencies and {external_layouts_seen} external mappings");
+    for (src, dest) in &mappings {
+        writeln!(map_file, "{src} -> {dest}")?;
+    }
+
+    eprintln!("[Ardos Setup] populate-map: ingested ardos-layout from {layouts_seen} dependencies and {external_layouts_seen} external mappings ({} unique mappings written)", mappings.len());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dedup_push_new_entry() {
+        let mut m: Vec<(String, String)> = Vec::new();
+        dedup_push(&mut m, "a".into(), "1".into());
+        assert_eq!(m, vec![("a".into(), "1".into())]);
+    }
+
+    #[test]
+    fn dedup_push_overwrites_existing() {
+        let mut m: Vec<(String, String)> = Vec::new();
+        dedup_push(&mut m, "a".into(), "1".into());
+        dedup_push(&mut m, "a".into(), "2".into());
+        assert_eq!(m, vec![("a".into(), "2".into())]);
+    }
+
+    #[test]
+    fn dedup_push_preserves_order_for_different_keys() {
+        let mut m: Vec<(String, String)> = Vec::new();
+        dedup_push(&mut m, "a".into(), "1".into());
+        dedup_push(&mut m, "b".into(), "2".into());
+        dedup_push(&mut m, "c".into(), "3".into());
+        assert_eq!(
+            m,
+            vec![
+                ("a".into(), "1".into()),
+                ("b".into(), "2".into()),
+                ("c".into(), "3".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn dedup_push_last_wins_among_duplicates() {
+        let mut m: Vec<(String, String)> = Vec::new();
+        dedup_push(&mut m, "a".into(), "first".into());
+        dedup_push(&mut m, "b".into(), "other".into());
+        dedup_push(&mut m, "a".into(), "second".into());
+        dedup_push(&mut m, "a".into(), "third".into());
+        assert_eq!(
+            m,
+            vec![
+                ("b".into(), "other".into()),
+                ("a".into(), "third".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_source_dot_slash() {
+        assert_eq!(resolve_source("/nix/store/abc-pkg", "./"), "/nix/store/abc-pkg/");
+    }
+
+    #[test]
+    fn resolve_source_dot() {
+        assert_eq!(resolve_source("/nix/store/abc-pkg", "."), "/nix/store/abc-pkg/");
+    }
+
+    #[test]
+    fn resolve_source_lib_slash() {
+        assert_eq!(
+            resolve_source("/nix/store/abc-pkg", "lib/"),
+            "/nix/store/abc-pkg/lib/"
+        );
+    }
+
+    #[test]
+    fn resolve_source_nested_path() {
+        assert_eq!(
+            resolve_source("/nix/store/abc-pkg", "share/glvnd"),
+            "/nix/store/abc-pkg/share/glvnd"
+        );
+    }
+
+    #[test]
+    fn broad_then_specific_resolves_correctly() {
+        let base = "/nix/store/abc-mesa-23.1";
+        let mut mappings: Vec<(String, String)> = Vec::new();
+
+        dedup_push(&mut mappings, resolve_source(base, "./"), "/ardos/mesa/".into());
+        dedup_push(
+            &mut mappings,
+            resolve_source(base, "share/glvnd/"),
+            "/drivers/glvnd/".into(),
+        );
+        dedup_push(
+            &mut mappings,
+            resolve_source(base, "include/"),
+            "/dev/null".into(),
+        );
+        dedup_push(
+            &mut mappings,
+            resolve_source(base, "lib/pkgconfig/"),
+            "/dev/null".into(),
+        );
+
+        // Broad mapping first, then specifics — order preserved
+        assert_eq!(mappings[0].0, "/nix/store/abc-mesa-23.1/");
+        assert_eq!(mappings[0].1, "/ardos/mesa/");
+        assert_eq!(mappings[1].0, "/nix/store/abc-mesa-23.1/share/glvnd/");
+        assert_eq!(mappings[1].1, "/drivers/glvnd/");
+        assert_eq!(mappings[2].0, "/nix/store/abc-mesa-23.1/include/");
+        assert_eq!(mappings[2].1, "/dev/null");
+        assert_eq!(mappings[3].0, "/nix/store/abc-mesa-23.1/lib/pkgconfig/");
+        assert_eq!(mappings[3].1, "/dev/null");
+    }
+
+    #[test]
+    fn external_mapping_overrides_dependency_layout() {
+        let base = "/nix/store/yyy-glibc";
+        let mut mappings: Vec<(String, String)> = Vec::new();
+
+        // Step 4: dependency's own layout
+        dedup_push(
+            &mut mappings,
+            resolve_source(base, "lib/"),
+            "/old/lib/".into(),
+        );
+        assert_eq!(mappings[0].1, "/old/lib/");
+
+        // Step 5: external mapping overrides the same source path
+        dedup_push(
+            &mut mappings,
+            resolve_source(base, "lib/"),
+            "/new/lib/".into(),
+        );
+        assert_eq!(mappings.len(), 1);
+        assert_eq!(mappings[0].1, "/new/lib/");
+    }
+
+    #[test]
+    fn override_moves_entry_to_end() {
+        let mut mappings: Vec<(String, String)> = Vec::new();
+        dedup_push(&mut mappings, "a".into(), "1".into());
+        dedup_push(&mut mappings, "b".into(), "2".into());
+        dedup_push(&mut mappings, "c".into(), "3".into());
+
+        // Override "b" — old entry removed, new one appended at end
+        // (last-wins: being last in the Vec means it wins for equal prefix lengths)
+        dedup_push(&mut mappings, "b".into(), "2-new".into());
+        assert_eq!(
+            mappings,
+            vec![
+                ("a".into(), "1".into()),
+                ("c".into(), "3".into()),
+                ("b".into(), "2-new".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn validate_accepts_relative_source_absolute_target() {
+        assert!(validate_layout_pair("lib/", "/ardos/lib/").is_ok());
+        assert!(validate_layout_pair("./", "/ardos/mesa/").is_ok());
+        assert!(validate_layout_pair(".", "/dev/null").is_ok());
+        assert!(validate_layout_pair("share/glvnd", "/drivers/glvnd/").is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_absolute_source() {
+        let err = validate_layout_pair("/nix/store/foo", "/ardos/lib/").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("must be relative"));
+    }
+
+    #[test]
+    fn validate_rejects_relative_target() {
+        let err = validate_layout_pair("lib/", "ardos/lib/").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("must be absolute"));
+    }
+
+    #[test]
+    fn validate_rejects_dot_slash_target() {
+        assert!(validate_layout_pair("lib/", "./ardos/lib/").is_err());
+    }
 }

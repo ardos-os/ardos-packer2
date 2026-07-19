@@ -107,7 +107,12 @@ fn translate_mapped_path(
     } else {
         &lookup_path[best_prefix_len + 1..]
     };
-    let translated = if suffix.is_empty() {
+    // If the source is a folder mapping (trailing /) but the target is NOT a
+    // directory (no trailing /), the target is a terminal redirect (e.g.
+    // /dev/null) — the suffix must not be appended.
+    let is_folder_src = nix_path.ends_with('/');
+    let is_folder_dst = ardos_path.ends_with('/');
+    let translated = if suffix.is_empty() || (is_folder_src && !is_folder_dst) {
         ardos_path.to_string()
     } else {
         format!("{}/{}", ardos_path.trim_end_matches('/'), suffix)
@@ -457,6 +462,167 @@ mod tests {
             Some((
                 "/nix/store/hash-pkg/lib/".to_string(),
                 "/ardos/lib/libfoo.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn terminal_redirect_does_not_append_suffix() {
+        let mappings = map(&[("/nix/store/hash-mesa/lib/pkgconfig/", "/dev/null")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-mesa/lib/pkgconfig/mesa.pc"),
+            Some((
+                "/nix/store/hash-mesa/lib/pkgconfig/".to_string(),
+                "/dev/null".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn terminal_redirect_include_to_dev_null() {
+        let mappings = map(&[("/nix/store/hash-mesa/include/", "/dev/null")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-mesa/include/GL/gl.h"),
+            Some((
+                "/nix/store/hash-mesa/include/".to_string(),
+                "/dev/null".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn broad_catchall_with_specific_overrides() {
+        let mappings = map(&[
+            ("/nix/store/abc-mesa/", "/ardos/mesa/"),
+            ("/nix/store/abc-mesa/share/glvnd/", "/drivers/glvnd/"),
+            ("/nix/store/abc-mesa/include/", "/dev/null"),
+            ("/nix/store/abc-mesa/lib/pkgconfig/", "/dev/null"),
+        ]);
+
+        // Broad catch-all: unrecognised subdir falls through to the root mapping
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/lib/libGL.so"),
+            Some((
+                "/nix/store/abc-mesa/".to_string(),
+                "/ardos/mesa/lib/libGL.so".to_string()
+            ))
+        );
+
+        // Specific override wins over broad
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/share/glvnd/libEGL.so"),
+            Some((
+                "/nix/store/abc-mesa/share/glvnd/".to_string(),
+                "/drivers/glvnd/libEGL.so".to_string()
+            ))
+        );
+
+        // Terminal redirect: /dev/null absorbs the suffix
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/include/GL/gl.h"),
+            Some((
+                "/nix/store/abc-mesa/include/".to_string(),
+                "/dev/null".to_string()
+            ))
+        );
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/lib/pkgconfig/mesa.pc"),
+            Some((
+                "/nix/store/abc-mesa/lib/pkgconfig/".to_string(),
+                "/dev/null".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn folder_mapping_without_trailing_slash_on_lookup() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib/", "/ardos/lib/")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib"),
+            Some((
+                "/nix/store/hash-pkg/lib/".to_string(),
+                "/ardos/lib/".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let mappings = map(&[("/nix/store/hash-pkg/lib/", "/ardos/lib/")]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/other-pkg/lib/libfoo.so"),
+            None
+        );
+    }
+
+    #[test]
+    fn empty_map_returns_none() {
+        let mappings: Vec<(String, String)> = Vec::new();
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib"),
+            None
+        );
+    }
+
+    #[test]
+    fn same_key_last_overrides_first() {
+        let mappings = map(&[
+            ("/nix/store/hash-pkg/lib/", "/old/lib/"),
+            ("/nix/store/hash-pkg/lib/", "/new/lib/"),
+        ]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/hash-pkg/lib/foo.so"),
+            Some((
+                "/nix/store/hash-pkg/lib/".to_string(),
+                "/new/lib/foo.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn specific_overrides_broad_regardless_of_order() {
+        // Specific listed BEFORE broad — longest-prefix still wins
+        let mappings = map(&[
+            ("/nix/store/abc-mesa/lib/GL/", "/drivers/GL/"),
+            ("/nix/store/abc-mesa/", "/ardos/mesa/"),
+        ]);
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/lib/GL/libGL.so"),
+            Some((
+                "/nix/store/abc-mesa/lib/GL/".to_string(),
+                "/drivers/GL/libGL.so".to_string()
+            ))
+        );
+        // Non-overridden subdir still falls through to broad
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/lib/dri/i965.so"),
+            Some((
+                "/nix/store/abc-mesa/".to_string(),
+                "/ardos/mesa/lib/dri/i965.so".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn terminal_redirect_overrides_broad_catchall() {
+        let mappings = map(&[
+            ("/nix/store/abc-mesa/", "/ardos/mesa/"),
+            ("/nix/store/abc-mesa/include/", "/dev/null"),
+        ]);
+        // Broad catches lib/
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/lib/libGL.so"),
+            Some((
+                "/nix/store/abc-mesa/".to_string(),
+                "/ardos/mesa/lib/libGL.so".to_string()
+            ))
+        );
+        // Terminal redirect swallows include/ entirely
+        assert_eq!(
+            translate_mapped_path(&mappings, "/nix/store/abc-mesa/include/foo.h"),
+            Some((
+                "/nix/store/abc-mesa/include/".to_string(),
+                "/dev/null".to_string()
             ))
         );
     }
