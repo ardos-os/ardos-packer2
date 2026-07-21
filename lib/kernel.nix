@@ -52,8 +52,15 @@ buildPkgs.stdenv.mkDerivation {
     buildPkgs.libmpc
     buildPkgs.rustc
     buildPkgs.rust-bindgen
-    buildPkgs.rustPlatform.rustcSrc
+    buildPkgs.file
+    buildPkgs.zlib
   ];
+
+  # Required so scripts/rust_is_available.sh (run by `make olddefconfig`)
+  # can locate the Rust standard library sources to build `core`. Without
+  # this, CONFIG_RUST_IS_AVAILABLE stays off and CONFIG_RUST=y is dropped
+  # during dependency resolution, so no .rmeta/.so artifacts are produced.
+  RUST_LIB_SRC = "${buildPkgs.rustPlatform.rustLibSrc}";
 
   configurePhase = ''
     runHook preConfigure
@@ -108,56 +115,56 @@ buildPkgs.stdenv.mkDerivation {
 
     # --- Main output: kernel image ---
     mkdir -p $out
-    cp ${kernelImage.path} $out/bzImage
+    cp ${kernelImage.path} $out/${kernelImage.outputName}
 
     # --- Headers output: build tree for external modules ---
-    # Mirrors the Arch linux-headers _package-headers function.
-    mkdir -p $headers
-
+    # Mirrors the Arch linux-headers _package-headers function. Ardos points
+    # cargo-nok (NOK_KERNEL_DIR) straight at this output, so the build tree is
+    # laid out flat in $headers rather than under /usr/lib/modules/<ver>/build.
     echo "Installing build files..."
-    cp .config Makefile Module.symvers System.map vmlinux $headers/
-    cp version $headers/ 2>/dev/null || true
-    cp localversion* $headers/ 2>/dev/null || true
-    [ -f tools/bpf/bpftool/vmlinux.h ] && cp tools/bpf/bpftool/vmlinux.h $headers/
+    install -Dt $headers -m644 .config Makefile Module.symvers System.map vmlinux
+    install -Dt $headers -m644 version 2>/dev/null || true
+    install -Dt $headers -m644 localversion.* 2>/dev/null || true
+    install -Dt $headers -m644 tools/bpf/bpftool/vmlinux.h 2>/dev/null || true
 
-    mkdir -p $headers/kernel
-    cp kernel/Makefile $headers/kernel/
-    mkdir -p $headers/arch/${karch}
-    cp arch/${karch}/Makefile $headers/arch/${karch}/
+    install -Dt $headers/kernel -m644 kernel/Makefile
+    install -Dt $headers/arch/${karch} -m644 arch/${karch}/Makefile
+    cp -at $headers scripts
+    ln -sr $headers/scripts/gdb/vmlinux-gdb.py $headers/vmlinux-gdb.py 2>/dev/null || true
 
-    cp -r scripts $headers/
-    ln -s scripts/gdb/vmlinux-gdb.py $headers/vmlinux-gdb.py 2>/dev/null || true
-
-    if grep -q "CONFIG_HAVE_STACK_VALIDATION=y" .config 2>/dev/null; then
-      mkdir -p $headers/tools/objtool
-      cp tools/objtool/objtool $headers/tools/objtool/
+    if [[ $(scripts/config -s CONFIG_HAVE_STACK_VALIDATION) = y ]]; then
+      install -Dt $headers/tools/objtool tools/objtool/objtool
     fi
-    if grep -q "CONFIG_DEBUG_INFO_BTF_MODULES=y" .config 2>/dev/null; then
-      mkdir -p $headers/tools/bpf/resolve_btfids
-      cp tools/bpf/resolve_btfids/resolve_btfids $headers/tools/bpf/resolve_btfids/
+    if [[ $(scripts/config -s CONFIG_DEBUG_INFO_BTF_MODULES) = y ]]; then
+      install -Dt $headers/tools/bpf/resolve_btfids tools/bpf/resolve_btfids/resolve_btfids
     fi
 
     echo "Installing headers..."
-    cp -r include $headers/
-    cp -r arch/${karch}/include $headers/arch/${karch}/
+    cp -at $headers include
+    cp -at $headers/arch/${karch} arch/${karch}/include
     install -Dt $headers/arch/${karch}/kernel -m644 arch/${karch}/kernel/asm-offsets.s 2>/dev/null || true
 
     install -Dt $headers/drivers/md -m644 drivers/md/*.h 2>/dev/null || true
     install -Dt $headers/net/mac80211 -m644 net/mac80211/*.h 2>/dev/null || true
+
+    # https://bugs.archlinux.org/task/13146
     install -Dt $headers/drivers/media/i2c -m644 drivers/media/i2c/msp3400-driver.h 2>/dev/null || true
+
+    # https://bugs.archlinux.org/task/20402
     install -Dt $headers/drivers/media/usb/dvb-usb -m644 drivers/media/usb/dvb-usb/*.h 2>/dev/null || true
     install -Dt $headers/drivers/media/dvb-frontends -m644 drivers/media/dvb-frontends/*.h 2>/dev/null || true
     install -Dt $headers/drivers/media/tuners -m644 drivers/media/tuners/*.h 2>/dev/null || true
+
+    # https://bugs.archlinux.org/task/71392
     install -Dt $headers/drivers/iio/common/hid-sensors -m644 drivers/iio/common/hid-sensors/*.h 2>/dev/null || true
 
     echo "Installing KConfig files..."
-    find . -name 'Kconfig*' -exec install -Dm644 {} "$headers/{}" \;
+    find . -name 'Kconfig*' -exec install -Dm644 {} $headers/{} \;
 
-    if grep -q "CONFIG_RUST=y" .config 2>/dev/null; then
+    if [[ $(scripts/config -s CONFIG_RUST) = y ]]; then
       echo "Installing Rust files..."
-      mkdir -p $headers/rust
-      cp rust/*.rmeta $headers/rust/
-      cp rust/*.so $headers/rust/ 2>/dev/null || true
+      install -Dt $headers/rust -m644 rust/*.rmeta
+      install -Dt $headers/rust rust/*.so
     fi
 
     echo "Installing unstripped VDSO..."
@@ -172,26 +179,27 @@ buildPkgs.stdenv.mkDerivation {
     echo "Removing documentation..."
     rm -rf $headers/Documentation
 
-    echo "Removing unneeded directories..."
-    rm -rf $headers/scripts/dtc
-
     echo "Removing broken symlinks..."
-    find $headers -type l -exec test ! -e {} \; -delete 2>/dev/null || true
+    find -L $headers -type l -delete 2>/dev/null || true
 
     echo "Removing loose objects..."
-    find $headers -type f -name '*.o' -delete
+    find $headers -type f -name '*.o' -delete 2>/dev/null || true
 
     echo "Stripping build tools..."
-    find $headers -type f -perm -u+x ! -name vmlinux -print0 2>/dev/null | \
-      xargs -0 -I{} sh -c 'case "$(file -Sib "{}")" in
-        application/x-sharedlib*)  strip -v {} ;;
-        application/x-archive*)    strip -v {} ;;
-        application/x-executable*) strip -v {} ;;
-        application/x-pie*)        strip -v {} ;;
-      esac' || true
+    strip_shared="--strip-unneeded"
+    strip_static="--strip-debug"
+    strip_binaries="--strip-all"
+    find $headers -type f -perm -u+x ! -name vmlinux -print0 2>/dev/null | while IFS= read -r -d $'\0' f; do
+      case "$(file -b --mime-type "$f")" in
+        application/x-sharedlib)      strip -v $strip_shared "$f" ;;
+        application/x-archive)        strip -v $strip_static "$f" ;;
+        application/x-executable)     strip -v $strip_binaries "$f" ;;
+        application/x-pie-executable) strip -v $strip_shared "$f" ;;
+      esac
+    done || true
 
     echo "Stripping vmlinux..."
-    strip -v $headers/vmlinux 2>/dev/null || true
+    strip -v $strip_static $headers/vmlinux 2>/dev/null || true
 
     runHook postInstall
   '';
