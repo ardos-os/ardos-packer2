@@ -200,7 +200,7 @@ buildPkgs.stdenv.mkDerivation {
 
     echo "Stripping vmlinux..."
     strip -v $strip_static $headers/vmlinux 2>/dev/null || true
-
+    rm $headers/scripts/dtc/include-prefixes/dt-bindings
     runHook postInstall
   '';
 
