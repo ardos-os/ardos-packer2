@@ -50,17 +50,19 @@ buildPkgs.stdenv.mkDerivation {
     buildPkgs.gmp
     buildPkgs.mpfr
     buildPkgs.libmpc
-    buildPkgs.rustc
-    buildPkgs.rust-bindgen
+    buildPkgs.rustc-unwrapped
+    buildPkgs.clippy
+    buildPkgs.rustfmt
+    buildPkgs.rust-bindgen-unwrapped
     buildPkgs.file
     buildPkgs.zlib
   ];
-
   # Required so scripts/rust_is_available.sh (run by `make olddefconfig`)
   # can locate the Rust standard library sources to build `core`. Without
   # this, CONFIG_RUST_IS_AVAILABLE stays off and CONFIG_RUST=y is dropped
   # during dependency resolution, so no .rmeta/.so artifacts are produced.
   RUST_LIB_SRC = "${buildPkgs.rustPlatform.rustLibSrc}";
+  RUST_SRC_PATH = "${buildPkgs.rustPlatform.rustLibSrc}";
 
   configurePhase = ''
     runHook preConfigure
