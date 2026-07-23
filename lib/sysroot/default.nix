@@ -3,7 +3,7 @@
   crossPkgs,
   externalMappings ? [],
   glibcPlugins ? [],
-  toolchainConfig ? {},
+  toolchainConfig ? {}
 }: let
   lib = buildPkgs.lib;
   rustScript = import ../builder/rustScript.nix {inherit buildPkgs;};
@@ -76,12 +76,13 @@ in {
   mkSysroot = {
     includePackages,
     name ? "ardos-sysroot",
+    ensureFolders ? [],
   }: let
     closure = buildPkgs.closureInfo {rootPaths = includePackages;};
   in
     buildPkgs.runCommand name {
       nativeBuildInputs = [buildPkgs.coreutils populateSysroot];
-    } ''
+    } (''
       work="$PWD/sysroot"
       mkdir -p "$work"
 
@@ -103,5 +104,7 @@ in {
       ''}
 
       cp -a "$work"/. "$out"/
-    '';
+    '' + (builtins.concatStringsSep "\n" (map (folderToCreate:
+    ''mkdir -p "$out/${folderToCreate}" || true''
+  ) ensureFolders)));
 }
