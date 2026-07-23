@@ -150,7 +150,19 @@ in rec {
     ...
   } @ args: let
     rustArgs = removeAttrs args ["runtimeLayout"];
-    craneLib = crane.mkLib crossPkgs;
+    # Use `crossPkgs` so crane detects cross-compilation (build != host) and
+    # auto-emits CARGO_BUILD_TARGET / CARGO_TARGET_<arch>_LINKER / CC_<arch>
+    # for the Ardos triple. But override the toolchain crane would otherwise
+    # pull from the host=ardos splice (which forces a from-source rustc build
+    # for the unknown `ardos` host) and point it back at the build-hosted,
+    # Ardos-patched rustc/cargo from `pkgsBuildTarget` (the same derivation the
+    # previous `crane.mkLib crossPkgs.pkgsBuildTarget` used).
+    craneLib = (crane.mkLib crossPkgs).overrideScope (_final: _prev: {
+      cargo = crossPkgs.pkgsBuildTarget.cargo;
+      rustc = crossPkgs.pkgsBuildTarget.rustc;
+      clippy = crossPkgs.pkgsBuildTarget.clippy or crossPkgs.pkgsBuildTarget.rustc;
+      rustfmt = crossPkgs.pkgsBuildTarget.rustfmt or crossPkgs.pkgsBuildTarget.rustc;
+    });
     drv = craneLib.buildPackage (rustArgs // {
       strictDeps = true;
     });
