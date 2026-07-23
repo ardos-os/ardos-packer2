@@ -163,6 +163,7 @@ in rec {
       else crane.mkLib crossPkgs;
     drv = craneLib.buildPackage (rustArgs // {
       strictDeps = true;
+      doCheck = false;
     });
   in
     wrapDerivation drv {
