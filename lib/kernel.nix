@@ -31,7 +31,7 @@ buildPkgs.stdenv.mkDerivation {
   pname = "linux";
   inherit version src;
 
-  outputs = [ "out" "headers" ];
+  outputs = [ "out" "headers" "uapi" ];
 
   nativeBuildInputs = [
     buildPkgs.gcc
@@ -120,6 +120,12 @@ buildPkgs.stdenv.mkDerivation {
     mkdir -p $out
     cp ${kernelImage.path} $out/${kernelImage.outputName}
 
+    # --- UAPI output: sanitized userspace headers ---
+    # `make headers_install` produces clean UAPI headers suitable for
+    # userspace compilation.  The raw build tree (headers output) contains
+    # kernel-internal macros and must NOT be used by userspace packages.
+    make ARCH=${targetCpu} headers_install INSTALL_HDR_PATH=$uapi
+
     # --- Headers output: build tree for external modules ---
     # Mirrors the Arch linux-headers _package-headers function. Ardos points
     # cargo-nok (NOK_KERNEL_DIR) straight at this output, so the build tree is
@@ -135,10 +141,10 @@ buildPkgs.stdenv.mkDerivation {
     cp -at $headers scripts
     ln -sr $headers/scripts/gdb/vmlinux-gdb.py $headers/vmlinux-gdb.py 2>/dev/null || true
 
-    if [[ $(scripts/config -s CONFIG_HAVE_STACK_VALIDATION) = y ]]; then
+    if grep -q "^CONFIG_HAVE_STACK_VALIDATION=y" .config; then
       install -Dt $headers/tools/objtool tools/objtool/objtool
     fi
-    if [[ $(scripts/config -s CONFIG_DEBUG_INFO_BTF_MODULES) = y ]]; then
+    if grep -q "^CONFIG_DEBUG_INFO_BTF_MODULES=y" .config; then
       install -Dt $headers/tools/bpf/resolve_btfids tools/bpf/resolve_btfids/resolve_btfids
     fi
 
