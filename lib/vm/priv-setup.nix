@@ -60,6 +60,20 @@ buildPkgs.writeShellScript "ardos-vm-priv-setup" ''
 
   SYSTEM_PARTUUID=$(blkid -s PARTUUID -o value /dev/nbd0p2)
 
+  # --- User disk ---
+  if [ ! -f "$USER_DISK" ]; then
+    qemu-img create -f qcow2 "$USER_DISK" "$USER_DISK_SIZE"
+    qemu-nbd --connect /dev/nbd1 "$USER_DISK"
+    sleep 0.2
+    parted -s /dev/nbd1 mklabel gpt
+    parted -s /dev/nbd1 mkpart primary btrfs 0% 100%
+    mkfs.btrfs -f /dev/nbd1p1
+  else
+    qemu-nbd --connect /dev/nbd1 "$USER_DISK"
+  fi
+
+  # Hand ownership back to the calling user so QEMU (non-root) can access
+  chown "$HOST_UID:$HOST_GID" "$SYSTEM_DISK" "$USER_DISK"
   mkdir -p "$MNT"
   mount /dev/nbd0p1 "$MNT"
   mkdir -p "$MNT/EFI/BOOT"
@@ -90,20 +104,7 @@ buildPkgs.writeShellScript "ardos-vm-priv-setup" ''
   umount "$MNT"
 
   qemu-nbd --disconnect /dev/nbd0
+  qemu-nbd --disconnect /dev/nbd1
   sleep 0.2
 
-  # --- User disk ---
-  if [ ! -f "$USER_DISK" ]; then
-    qemu-img create -f qcow2 "$USER_DISK" "$USER_DISK_SIZE"
-    qemu-nbd --connect /dev/nbd1 "$USER_DISK"
-    sleep 0.2
-    parted -s /dev/nbd1 mklabel gpt
-    parted -s /dev/nbd1 mkpart primary btrfs 0% 100%
-    mkfs.btrfs -f /dev/nbd1p1
-    qemu-nbd --disconnect /dev/nbd1
-    sleep 0.2
-  fi
-
-  # Hand ownership back to the calling user so QEMU (non-root) can access
-  chown "$HOST_UID:$HOST_GID" "$SYSTEM_DISK" "$USER_DISK"
 ''
