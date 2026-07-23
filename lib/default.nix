@@ -73,6 +73,8 @@ in rec {
       buildPkgs = toolchain.buildPkgs;
       inherit (builder) mkArdosDerivation mkArdosDerivationClang wrapDerivation buildArdosRustPackage;
 
+      craneLib = if crane != null then crane.mkLib buildPkgs else null;
+
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
 
@@ -86,6 +88,7 @@ in rec {
         crossPkgs
         // {
           inherit mkArdosDerivation mkArdosDerivationClang wrapDerivation buildArdosRustPackage;
+          inherit (instance) craneLib;
           ap2 = instance;
         };
       in
