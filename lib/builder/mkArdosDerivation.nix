@@ -150,7 +150,7 @@ in rec {
     ...
   } @ args: let
     rustArgs = removeAttrs args ["runtimeLayout"];
-    craneLib = crane.mkLib crossPkgs.pkgsBuildTarget;
+    craneLib = crane.mkLib crossPkgs;
     drv = craneLib.buildPackage (rustArgs // {
       strictDeps = true;
     });
