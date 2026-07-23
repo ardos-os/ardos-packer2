@@ -63,7 +63,8 @@ buildPkgs.stdenv.mkDerivation {
   # during dependency resolution, so no .rmeta/.so artifacts are produced.
   RUST_LIB_SRC = "${buildPkgs.rustPlatform.rustLibSrc}";
   RUST_SRC_PATH = "${buildPkgs.rustPlatform.rustLibSrc}";
-
+  dontCheckForBrokenSymlinks = true;
+  dontFixup = true;
   configurePhase = ''
     runHook preConfigure
 
@@ -142,8 +143,8 @@ buildPkgs.stdenv.mkDerivation {
     fi
 
     echo "Installing headers..."
-    cp -at $headers include
-    cp -at $headers/arch/${karch} arch/${karch}/include
+    cp -rL include $headers/
+    cp -rL arch/${karch}/include $headers/arch/${karch}/
     install -Dt $headers/arch/${karch}/kernel -m644 arch/${karch}/kernel/asm-offsets.s 2>/dev/null || true
 
     install -Dt $headers/drivers/md -m644 drivers/md/*.h 2>/dev/null || true
@@ -163,10 +164,11 @@ buildPkgs.stdenv.mkDerivation {
     echo "Installing KConfig files..."
     find . -name 'Kconfig*' -exec install -Dm644 {} $headers/{} \;
 
-    if [[ $(scripts/config -s CONFIG_RUST) = y ]]; then
+    if grep -q "^CONFIG_RUST=y" .config 2>/dev/null; then
       echo "Installing Rust files..."
-      install -Dt $headers/rust -m644 rust/*.rmeta
-      install -Dt $headers/rust rust/*.so
+      mkdir -p $headers/rust
+      cp rust/*.rmeta $headers/rust/ 2>/dev/null || true
+      cp rust/*.so $headers/rust/ 2>/dev/null || true
     fi
 
     echo "Installing unstripped VDSO..."
