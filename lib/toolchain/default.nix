@@ -191,12 +191,12 @@
         then wrapStdenvForArdos prev.clangStdenv ardosSetupHookDrv
         else prev.clangStdenv;
 
-      rustPlatform = if isCrossTool then final.makeRustPlatform {
+      rustPlatform = final.makeRustPlatform {
         cargo = final.pkgsBuildBuild.cargo;
         rustc = final.pkgsBuildTarget.rustc;
-      } else prev.rustPlatform;
-      rustc = if isCrossTool then ardosRustc else prev.rustc;
-      rustc-unwrapped = if isCrossTool then ardosRustcUnwrapped else prev.rustc-unwrapped;
+      };
+      rustc = ardosRustc;
+      rustc-unwrapped = ardosRustcUnwrapped;
       
       bintools =
         if isCrossTool
