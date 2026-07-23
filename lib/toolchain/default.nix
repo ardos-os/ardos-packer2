@@ -140,26 +140,11 @@
     '';
 
     # Build rustc with the Ardos target as a built-in (tier 3).
-    ardosRustcUnwrapped = (prev.rustc.unwrapped.overrideAttrs (old: {
-      postConfigure = (old.postConfigure or "") + ''
-        echo "=== ap2: injecting built-in Ardos target ==="
-        TARGET_DIR=compiler/rustc_target/src/spec/targets
-        echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
-        cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
-    ${ardosTargetRs}
-    RSEOF
-
-        echo "Registering ${targetPlatform.rust.rustcTargetSpec} in supported_targets!"
-        sed -i '/^supported_targets! {$/a\    ("${targetPlatform.rust.rustcTargetSpec}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
-        echo "Adding to STAGE0_MISSING_TARGETS"
-        # sed -i '/^const STAGE0_MISSING_TARGETS:/a\    "${targetPlatform.rust.rustcTargetSpec}",' src/bootstrap/src/core/sanity.rs
-        echo "Verifying STAGE0_MISSING_TARGETS:"
-      '';
-    }));
-    ardosRustc = prev.rustc.override {
-      rustc-unwrapped = ardosRustcUnwrapped;
-      sysroot = null;
-    };
+    # The patch is applied inside rustPackages.overrideScope (below) to the
+    # scope's own rustc-unwrapped.  The top-level rustc/rustc-unwrapped attrs
+    # simply point at the scope's patched versions to avoid double-patching
+    # (which happens when both the top-level overlay and the scope override
+    # independently patch the same base derivation via splicing).
     ardosSetupHookDrv = let
       ardosEarlyInit = rustScript "ardos-setup-early-init" ../builder/setup/early-init.rs;
       ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos-setup-early-init";
@@ -231,8 +216,8 @@
         cargo = final.pkgsBuildBuild.cargo;
         rustc = final.pkgsBuildTarget.rustc;
       };
-      rustc = ardosRustc;
-      rustc-unwrapped = ardosRustcUnwrapped;
+      rustc = final.rustPackages.rustc;
+      rustc-unwrapped = final.rustPackages.rustc-unwrapped;
       
       bintools =
         if isCrossTool
