@@ -157,12 +157,10 @@ in rec {
     # for the unknown `ardos` host) and point it back at the build-hosted,
     # Ardos-patched rustc/cargo from `pkgsBuildTarget` (the same derivation the
     # previous `crane.mkLib crossPkgs.pkgsBuildTarget` used).
-    craneLib = (crane.mkLib crossPkgs).overrideScope (_final: _prev: {
-      cargo = crossPkgs.pkgsBuildTarget.cargo;
-      rustc = crossPkgs.pkgsBuildTarget.rustc;
-      clippy = crossPkgs.pkgsBuildTarget.clippy or crossPkgs.pkgsBuildTarget.rustc;
-      rustfmt = crossPkgs.pkgsBuildTarget.rustfmt or crossPkgs.pkgsBuildTarget.rustc;
-    });
+    craneLib =
+      if crane == null
+      then throw "buildArdosRustPackage: crane input is null — pass crane to ap2.init"
+      else crane.mkLib crossPkgs;
     drv = craneLib.buildPackage (rustArgs // {
       strictDeps = true;
     });

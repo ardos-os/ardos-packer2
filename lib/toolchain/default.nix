@@ -191,6 +191,42 @@
         then wrapStdenvForArdos prev.clangStdenv ardosSetupHookDrv
         else prev.clangStdenv;
 
+      # Override the internal rust package scope (rustPackages) so that
+      # rustc-unwrapped and rustc within the scope use the Ardos-patched
+      # versions.  Without this, cargo (defined inside the scope via
+      # self.callPackage ./cargo.nix) bakes the *unpatched* scope-rustc
+      # wrapper into its postInstall (wrapProgram ... --suffix PATH
+      # "${rustc}/bin"), dragging in the unpatched rustc-unwrapped — a
+      # from-source build whose stage0 bootstrap can't find the ardos
+      # target spec.  Overriding the top-level pkgs.rustc/rustc-unwrapped
+      # alone is insufficient because the internal scope is a separate
+      # makeScope that callPackage resolves in.
+      #
+      # NB: the patched rustc-unwrapped must be defined *inside* the
+      # overrideScope callback, using sPrev (the scope's own previous
+      # value), NOT the overlay's prev.  Using prev.rustc.unwrapped here
+      # causes infinite recursion because prev.rustc.unwrapped resolves
+      # through the fixed-point to final.rustc-unwrapped, which *is*
+      # this override.
+      rustPackages = prev.rustPackages.overrideScope (_sFinal: sPrev: {
+        rustc-unwrapped = sPrev.rustc-unwrapped.overrideAttrs (old: {
+          postConfigure = (old.postConfigure or "") + ''
+            echo "=== ap2: injecting built-in Ardos target (scope) ==="
+            TARGET_DIR=compiler/rustc_target/src/spec/targets
+            echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
+            cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
+          ${ardosTargetRs}
+          RSEOF
+
+            echo "Registering ${targetPlatform.rust.rustcTargetSpec} in supported_targets!"
+            sed -i '/^supported_targets! {$/a\    ("${targetPlatform.rust.rustcTargetSpec}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
+          '';
+        });
+        rustc = sPrev.rustc.override {
+          rustc-unwrapped = _sFinal.rustc-unwrapped;
+          sysroot = null;
+        };
+      });
       rustPlatform = final.makeRustPlatform {
         cargo = final.pkgsBuildBuild.cargo;
         rustc = final.pkgsBuildTarget.rustc;
