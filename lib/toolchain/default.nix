@@ -69,7 +69,7 @@
   # Overlay to adapt Nixpkgs toolchain and packages for the Ardos target
   ardosOverlay = final: prev: let
     isTarget = prev.stdenv.hostPlatform.config == targetPlatform.config;
-    isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config && !isTarget;
+    isCrossTool = prev.stdenv.targetPlatform.config == targetPlatform.config;
 
     # Architecture-specific settings for the built-in Rust target.
     archRustSettings = {
@@ -191,12 +191,12 @@
         then wrapStdenvForArdos prev.clangStdenv ardosSetupHookDrv
         else prev.clangStdenv;
 
-      rustPlatform = if isTarget then final.makeRustPlatform {
+      rustPlatform = if isCrossTool then final.makeRustPlatform {
         cargo = final.pkgsBuildBuild.cargo;
         rustc = final.pkgsBuildTarget.rustc;
       } else prev.rustPlatform;
-      rustc = ardosRustc;
-      rustc-unwrapped = ardosRustcUnwrapped;
+      rustc = if isCrossTool then ardosRustc else prev.rustc;
+      rustc-unwrapped = if isCrossTool then ardosRustcUnwrapped else prev.rustc-unwrapped;
       
       bintools =
         if isCrossTool
