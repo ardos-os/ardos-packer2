@@ -1,0 +1,97 @@
+---
+title: Assemble the system image
+description: Combine built packages into a sysroot directory tree and a SquashFS ROM.
+---
+
+import {FileTree} from '@astrojs/starlight/components'
+
+This guide shows you how to turn built packages into the sysroot directory tree and the SquashFS ROM that becomes the Ardos root filesystem.
+
+## When to use this guide
+
+Use this when you have packages built with the builders and you want them combined into the immutable image. If you are booting a kernel, initramfs, and ROM together, follow this guide and then [Run the image in a virtual machine](/how-to/run-vm/).
+
+## Before you start
+
+- An `ap2` instance. See the [instance reference](/reference/instance/).
+- Packages built as Ardos derivations. See [Add a package to an Ardos image](/how-to/add-package/).
+
+## Create the sysroot
+
+The sysroot is the assembled directory tree. Its `includePackages` list decides what ends up in it. The closure of each listed package is walked, and every mapped layout is expanded into the tree.
+
+```nix
+ap2.sysroot {
+  name = "ardos-os";
+  includePackages = [ hello hellolibrary ];
+  ensureFolders = [ "tmp" "run" "proc" "sys" "dev" ];
+}
+```
+
+The result is a directory like this:
+
+<FileTree>
+  - hello/
+    - hello
+  - hellolibrary/
+    - lib/
+      - libhellolibrary.so
+  - ardos/
+    - lib/
+      - libc.so.6
+</FileTree>
+
+Options:
+
+| Option            | Type                | Default           | Description                                                  |
+| ----------------- | ------------------- | ----------------- | ------------------------------------------------------------ |
+| `includePackages` | list of derivations | required          | Packages whose closure forms the sysroot                     |
+| `name`            | string              | `"ardos-sysroot"` | Derivation name                                              |
+| `ensureFolders`   | list of strings     | `[]`              | Extra absolute or relative folders to create with `mkdir -p` |
+
+## Check the tree
+
+List the output to confirm the mapped files are present:
+
+```sh
+ls -R result
+```
+
+If external mappings are configured, the libc runtime appears under `ardos/lib` here. Verify no Nix store paths show up in the tree.
+
+## Build the ROM
+
+The ROM is a SquashFS image of the entire sysroot. Point it at the sysroot derivation:
+
+```nix
+ap2.rom {
+  sysroot = ardosSysroot;
+  name = "ardos-os";
+}
+```
+
+The output is a single squashfs file. It is the root filesystem the boot process mounts read-only, typically loop-mounted from a system partition.
+
+Options:
+
+| Option    | Type       | Default       | Description                    |
+| --------- | ---------- | ------------- | ------------------------------ |
+| `sysroot` | derivation | required      | The sysroot from `ap2.sysroot` |
+| `name`    | string     | `"ardos-rom"` | Derivation name                |
+
+## Troubleshooting
+
+**Problem: a package is missing from the image**
+Only the closure of `includePackages` is included. If the package is a build-time tool used by another package but not a runtime dependency, list it explicitly.
+
+**Problem: two packages map to the same target path**
+The last declared entry wins. Check each package's `nix-support/ardos-layout` to see which mapping your package writes.
+
+**Problem: an empty directory like `/proc` or `/tmp` is missing**
+The sysroot only copies files that exist in a mapping. Add the folder to `ensureFolders`.
+
+## Related guides
+
+- [Add a package to an Ardos image](/how-to/add-package/) to build what you assemble here.
+- [Run the image in a virtual machine](/how-to/run-vm/) to boot the finished ROM.
+- [About the build pipeline](/explanation/build-pipeline/) for how the tree is populated.

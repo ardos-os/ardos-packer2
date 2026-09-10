@@ -1,9 +1,6 @@
-## Checks via `readelf` command that the binary requests libraries from the right 
+## Checks via `readelf` command that the binary requests libraries from the right
 ## paths at runtime.
-
-ctx:
-
-let
+ctx: let
   hello =
     ctx.pkgs.hello;
 
@@ -14,7 +11,6 @@ let
 
   expectedInterpreter =
     expectedInterpreters.${ctx.targetTriple};
-
 in {
   name = "hello-binary";
 

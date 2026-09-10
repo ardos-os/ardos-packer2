@@ -4,16 +4,13 @@
   nixpkgs,
   crane ? null,
 }: let
-
-
-
   mkPackagesForBuildPlatform = _buildName: buildPlatform: let
     buildSystem = buildPlatform.linuxTriple;
 
     targetPackagesByTriple =
       lib.mapAttrs' (
         _targetName: targetPlatform:
-          lib.nameValuePair targetPlatform.config ((import ../tests/fixtures/instance.nix) { inherit buildSystem targetPlatform nixpkgs ap2 crane; })
+          lib.nameValuePair targetPlatform.config ((import ../tests/fixtures/instance.nix) {inherit buildSystem targetPlatform nixpkgs ap2 crane;})
       )
       ap2.platforms;
 
@@ -42,7 +39,7 @@
           "vm-run" = ardosPacker.vm.launch {
             kernel = ardosPacker.buildPkgs.linuxPackages_latest.kernel;
             initrd = ardosPacker.initrd.fromRustBinary ./vm-initramfs;
-            rom = ardosPacker.rom { inherit sysroot; };
+            rom = ardosPacker.rom {inherit sysroot;};
             kernel-params = "init=/init";
           };
         };

@@ -1,0 +1,272 @@
+---
+title: Build your first Ardos image
+description: Create your own flake that builds a shared library, a program linking it, a sysroot, and a SquashFS ROM, using ardos-packer2 as a flake input.
+---
+
+import {FileTree, Steps} from '@astrojs/starlight/components'
+
+Working in your own project directory, you add ardos-packer2 as a flake input and build a small system image.
+
+## What you'll build
+
+- `hellolibrary`, a shared library whose files land at `/hellolibrary/` in the image
+- `hello`, a program at `/hello/hello` that links that library
+- `sysroot`, the directory tree assembled from both packages and their runtime dependencies
+- `rom`, the SquashFS image of that tree
+
+## Before you start
+
+- Linux on x86\_64 and Nix with flakes enabled.
+- The first build compiles the cross toolchain for the Ardos target, so it will take some time and disk space to compile. You can skip that with the [Cachix binary cache](/how-to/use-cachix/), which serves the Ardos-patched Rust and GCC builds precompiled. It is updated on CI on every push.
+
+## Build the image
+
+<Steps>
+  1. **Create the project and initialise an instance**
+
+     ```sh
+     mkdir my-ardos
+     cd my-ardos
+     ```
+
+     Create this layout:
+
+     <FileTree>
+       - my-ardos/
+         - external-mappings.nix
+         - flake.nix
+         - packages/
+           - hellolibrary/
+             - default.nix
+             - src/
+               - hellolibrary.c
+               - hellolibrary.h
+           - hello/
+             - default.nix
+             - src/
+               - main.c
+     </FileTree>
+
+     The `flake.nix` declares the inputs and the `ap2` instance:
+
+     ```nix
+     {
+       inputs = {
+         nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+         ap2.url = "github:ardos-os/ardos-packer2";
+       };
+
+       outputs = { self, nixpkgs, ap2 }: let
+         instance = ap2.lib.init {
+           inherit nixpkgs;
+           buildSystem = "x86_64-linux";
+           targetPlatform = ap2.lib.platforms.x86_64;
+           externalMappings = import ./external-mappings.nix;
+         };
+       in {
+         packages.x86_64-linux = let
+           hellolibrary = instance.callPackage ./packages/hellolibrary/default.nix {};
+           hello = instance.callPackage ./packages/hello/default.nix { inherit hellolibrary; };
+           sysroot = instance.sysroot {
+             name = "my-ardos-sysroot";
+             includePackages = [ hello ];
+           };
+           rom = instance.rom { inherit sysroot; };
+         in {
+           inherit hellolibrary hello sysroot rom;
+           default = rom;
+         };
+       };
+     }
+     ```
+
+     `ap2.lib.init` builds the cross toolchain for `targetPlatform` and returns the instance that carries every builder and assembly function. Package files are evaluated with `instance.callPackage`, which puts `mkArdosDerivation` and the cross package set in scope. `externalMappings` is the file you write in the next step. The sysroot assembles the closure of `[ hello ]`, and the ROM packs that tree into a SquashFS image.
+
+     For aarch64, use `buildSystem = "aarch64-linux"`, `ap2.lib.platforms.aarch64`, and the `packages.aarch64-linux` output. The file contents in this tutorial are the same; only the dynamic linker name differs (`ld-linux-aarch64.so.1`).
+
+  2. **Map the runtime libraries**
+
+     glibc, libgcc, and the gcc runtime library are nixpkgs derivations. They are not built with the Ardos builder, so they declare no layout of their own. Their files need entries at the instance level:
+
+     ```nix
+     # external-mappings.nix
+     crossPkgs: [
+       {
+         drv = crossPkgs.glibc;
+         runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
+       }
+       {
+         drv = crossPkgs.stdenv.cc.cc.libgcc;
+         runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
+       }
+       {
+         drv = crossPkgs.stdenv.cc.cc.lib;
+         runtimeLayout = [
+           { source = "${crossPkgs.stdenv.hostPlatform.config}/lib/"; target = "/ardos/lib/"; }
+         ];
+       }
+     ]
+     ```
+
+     The file is a function from `crossPkgs` to a list of `{ drv, runtimeLayout }` entries. The function form is the only way to name these derivations: the target package set exists only after `init` evaluates it. Each entry says to take `source` from the derivation's output and place it at `target`. The glibc entry covers the shared libraries and the dynamic linker; the other two cover libgcc's support library and the gcc runtime target directory.
+
+     This list omits glibc's NSS modules. `hello` does not link them, so they are not needed here.
+
+  3. **Write the shared library**
+
+     ```c
+     # packages/hellolibrary/src/hellolibrary.h
+     #ifndef HELLOLIBRARY_H
+     #define HELLOLIBRARY_H
+
+     const char* hellolibrary_greeting(void);
+     int hellolibrary_add(int a, int b);
+
+     #endif /* HELLOLIBRARY_H */
+     ```
+
+     ```c
+     /* packages/hellolibrary/src/hellolibrary.c */
+     #include "hellolibrary.h"
+
+     const char* hellolibrary_greeting(void) {
+         return "Hello from hellolibrary!";
+     }
+
+     int hellolibrary_add(int a, int b) {
+         return a + b;
+     }
+     ```
+
+     ```nix
+     # packages/hellolibrary/default.nix
+     {mkArdosDerivation}:
+
+     mkArdosDerivation {
+       pname = "hellolibrary";
+       version = "0.1.0";
+       src = ./src;
+
+       runtimeLayout = [
+         { source = "lib/"; target = "/hellolibrary/"; }
+         { source = "include/"; target = "/hellolibrary/include/"; }
+       ];
+
+       buildPhase = ''
+         runHook preBuild
+         $CC -shared -fPIC -o libhellolibrary.so hellolibrary.c
+         runHook postBuild
+       '';
+
+       installPhase = ''
+         runHook preInstall
+         mkdir -p $out/lib $out/include
+         cp libhellolibrary.so $out/lib/
+         cp hellolibrary.h $out/include/
+         runHook postInstall
+       '';
+     }
+     ```
+
+     `runtimeLayout` tells the builder where each file lands in the final filesystem. A `source` ending in `/` is a folder mapping: everything under that folder is copied to the target, keeping its subdirectories. A folder mapping covers any number of files, so you do not list them one by one.
+
+  4. **Write the program**
+
+     ```c
+     /* packages/hello/src/main.c */
+     #include <stdio.h>
+     #include "hellolibrary.h"
+
+     int main(void) {
+         printf("%s\n", hellolibrary_greeting());
+         printf("2 + 3 = %d\n", hellolibrary_add(2, 3));
+         return 0;
+     }
+     ```
+
+     ```nix
+     # packages/hello/default.nix
+     {mkArdosDerivation, hellolibrary}:
+
+     mkArdosDerivation {
+       pname = "hello";
+       version = "0.1.0";
+       src = ./src;
+
+       buildInputs = [ hellolibrary ];
+
+       runtimeLayout = [
+         { source = "bin/hello"; target = "/hello/hello"; }
+       ];
+
+       buildPhase = ''
+         runHook preBuild
+         $CC -o hello main.c -I${hellolibrary}/include -L${hellolibrary}/lib -lhellolibrary
+         runHook postBuild
+       '';
+
+       installPhase = ''
+         runHook preInstall
+         mkdir -p $out/bin
+         cp hello $out/bin/
+         runHook postInstall
+       '';
+     }
+     ```
+
+     `buildInputs` holds target dependencies, so `hellolibrary` is built for Ardos, where `hello` needs it at run time. Because `hellolibrary` maps `lib/` and `include/` as folders, the linker wrapper knows that `-L${hellolibrary}/lib` corresponds to `/hellolibrary` and writes that path into the binary.
+
+  5. **Build the library and inspect its layout**
+
+     ```sh
+     nix build .#hellolibrary
+     cat result/nix-support/ardos-layout
+     ```
+
+     The file holds one line per `runtimeLayout` entry: `lib/ -> /hellolibrary/` and `include/ -> /hellolibrary/include/`. This metadata is all the builder writes at this point. The linker wrapper and the sysroot read it when they run.
+
+  6. **Build the program and inspect the translated paths**
+
+     ```sh
+     nix build .#hello
+     nix run nixpkgs#patchelf -- --print-interpreter result/bin/hello
+     ```
+
+     The output is `/ardos/lib/ld-linux-x86-64.so.2`. The interpreter was translated from the glibc mapping in `external-mappings.nix`.
+
+     ```sh
+     nix run nixpkgs#patchelf -- --print-rpath result/bin/hello | tr ':' '\n'
+     ```
+
+     One entry is `/hellolibrary`; there are no `/nix/store/...` paths. The wrapper produced these values at link time from the layout files you wrote in steps 2 and 3.
+
+  7. **Assemble the sysroot**
+
+     ```sh
+     nix build .#sysroot
+     ls -R result
+     ```
+
+     The tree contains `hello/hello`, `hellolibrary/lib/libhellolibrary.so`, `hellolibrary/include/hellolibrary.h`, and the runtime libraries under `ardos/lib`. The glibc and libgcc files under `ardos/lib` came from the external mappings in `external-mappings.nix`. Only the closure of `hello` is in the tree.
+
+  8. **Build the ROM and list it**
+
+     ```sh
+     nix build .#rom
+     nix shell nixpkgs#squashfsTools -c unsquashfs -l result
+     ```
+
+     The listing mirrors the sysroot tree from the previous step. The `result` file is the SquashFS root filesystem that an Ardos device mounts read-only.
+</Steps>
+
+## What you've built
+
+A shared library and a program that links it, then the sysroot tree and the SquashFS ROM those two packages assemble into. The layout metadata each package writes, and the translated interpreter and RPATH you inspected, are what the pipeline uses to build every image.
+
+## Next steps
+
+- Boot a kernel, initramfs, and ROM together in QEMU with [Run the image in a virtual machine](/how-to/run-vm/).
+- Add another package, or wrap an existing nixpkgs derivation, with [Add a package to an Ardos image](/how-to/add-package/).
+- Shape the resulting tree with [Assemble the system image](/how-to/assemble-image/).
+- See why paths are translated at all in [About the build pipeline](/explanation/build-pipeline/).
+- Check the full option surface in the [instance](/reference/instance/) and [builders](/reference/builders/) references.

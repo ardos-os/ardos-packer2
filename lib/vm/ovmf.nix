@@ -1,6 +1,4 @@
-{
-  buildPkgs,
-}:
+{buildPkgs}:
 # OVMF firmware for UEFI boot.
 # Uses the edk2-ovmf package from nixpkgs (patched, from Stage 0).
 # Exposes OVMF_CODE.fd (read-only firmware) and OVMF_VARS.fd (writable vars).

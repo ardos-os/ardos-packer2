@@ -30,7 +30,11 @@ in rec {
   #   toolchainConfig: optional attrset for toolchain-level concerns
   #                   (e.g. { glibc = { runtimePrefix = "/ardos"; }; })
   #   crane:          optional crane lib (required for initrd.fromRustBinary)
-  init = {nixpkgs, crane ? null, ...}@args: let
+  init = {
+    nixpkgs,
+    crane ? null,
+    ...
+  } @ args: let
     lib = nixpkgs.lib;
     inherit (args) targetPlatform buildSystem;
     externalMappingsArg = args.externalMappings or [];
@@ -51,7 +55,7 @@ in rec {
     glibcPluginsArg = args.glibcPlugins or [];
     glibcPlugins =
       if builtins.isFunction glibcPluginsArg
-      then glibcPluginsArg (crossPkgs // { inherit toolchainConfig; })
+      then glibcPluginsArg (crossPkgs // {inherit toolchainConfig;})
       else glibcPluginsArg;
     builder = import ./builder {
       inherit buildPkgs crossPkgs crane externalMappings;
@@ -61,9 +65,9 @@ in rec {
     };
 
     # Instance-level building blocks (not VM-specific)
-    kernel  = import ./kernel.nix { inherit buildPkgs lib crossPkgs; };
-    limine  = import ./limine.nix { inherit buildPkgs lib crossPkgs; };
-    initrd  = import ./initrd.nix { inherit buildPkgs crane crossPkgs; };
+    kernel = import ./kernel.nix {inherit buildPkgs lib crossPkgs;};
+    limine = import ./limine.nix {inherit buildPkgs lib crossPkgs;};
+    initrd = import ./initrd.nix {inherit buildPkgs crane crossPkgs;};
     vm = import ./vm {
       inherit buildPkgs lib crossPkgs kernel limine;
     };
@@ -73,7 +77,10 @@ in rec {
       buildPkgs = toolchain.buildPkgs;
       inherit (builder) mkArdosDerivation mkArdosDerivationClang wrapDerivation buildArdosRustPackage;
 
-      craneLib = if crane != null then crane.mkLib buildPkgs else null;
+      craneLib =
+        if crane != null
+        then crane.mkLib buildPkgs
+        else null;
 
       stdenv = crossPkgs.stdenv;
       cc = toolchain.toolchain.cc;
@@ -84,13 +91,13 @@ in rec {
       };
 
       callPackage = path: overrides: let
-      scope =
-        crossPkgs
-        // {
-          inherit mkArdosDerivation mkArdosDerivationClang wrapDerivation buildArdosRustPackage;
-          inherit (instance) craneLib;
-          ap2 = instance;
-        };
+        scope =
+          crossPkgs
+          // {
+            inherit mkArdosDerivation mkArdosDerivationClang wrapDerivation buildArdosRustPackage;
+            inherit (instance) craneLib;
+            ap2 = instance;
+          };
       in
         lib.callPackageWith scope path overrides;
 

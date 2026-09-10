@@ -10,25 +10,45 @@
 crossPkgs: let
   inherit (crossPkgs) glibc;
   inherit (crossPkgs.stdenv.cc.cc) libgcc lib;
-  nssFiles = (import ../../lib/plugins/nss-files.nix {
+  nssFiles = import ../../lib/plugins/nss-files.nix {
     glibc = crossPkgs.glibc;
     runCommand = crossPkgs.runCommand;
-  });
+  };
 in [
   {
     drv = glibc;
-    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
+    runtimeLayout = [
+      {
+        source = "lib/";
+        target = "/ardos/lib/";
+      }
+    ];
   }
   {
     drv = nssFiles;
-    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
+    runtimeLayout = [
+      {
+        source = "lib/";
+        target = "/ardos/lib/";
+      }
+    ];
   }
   {
     drv = libgcc;
-    runtimeLayout = [{ source = "lib/"; target = "/ardos/lib/"; }];
+    runtimeLayout = [
+      {
+        source = "lib/";
+        target = "/ardos/lib/";
+      }
+    ];
   }
   {
     drv = lib;
-    runtimeLayout = [{ source = "${crossPkgs.stdenv.hostPlatform.config}/lib/"; target = "/ardos/lib/"; }];
+    runtimeLayout = [
+      {
+        source = "${crossPkgs.stdenv.hostPlatform.config}/lib/";
+        target = "/ardos/lib/";
+      }
+    ];
   }
 ]

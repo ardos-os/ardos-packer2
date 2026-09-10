@@ -10,8 +10,14 @@ mkArdosDerivation {
   src = ./src;
 
   runtimeLayout = [
-    { source = "lib/"; target = "/hellolibrary/"; }
-    { source = "include/"; target = "/hellolibrary/include/"; }
+    {
+      source = "lib/";
+      target = "/hellolibrary/";
+    }
+    {
+      source = "include/";
+      target = "/hellolibrary/include/";
+    }
   ];
 
   buildPhase = ''

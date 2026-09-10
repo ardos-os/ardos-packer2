@@ -1,9 +1,6 @@
 ## Checks via readelf that the glibc-test binary has the correct
 ## dynamic interpreter and RPATH, and links against libc.
-
-ctx:
-
-let
+ctx: let
   glibcTest = ctx.pkgs.glibcTest;
 
   expectedInterpreters = {

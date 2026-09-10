@@ -1,0 +1,119 @@
+---
+title: Repository commands
+description: The just and nix commands that build and check the flake outputs while developing Ardos Packer 2.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components'
+
+This page is for developing Ardos Packer 2 itself. It lists the flake outputs for packages and checks and the commands that reach them. Each output is scoped by build machine and by target, so the output path carries both.
+
+Use the `just` recipes from the repository root; they are the shortest way to build and check. `just` with no arguments lists every recipe. Each recipe runs a plain `nix` command underneath, shown alongside in case you prefer not to use `just`.
+
+## Build system CPU and target CPU
+
+`arch` is the CPU of the build machine, matching its Nix system string. `target` is the CPU the packages are compiled for. Both default to the build machine's own CPU. The recipes accept them as optional arguments after the name.
+
+Because the toolchain cross-compiles, any supported target builds from either host. For example, from an `x86_64-linux` machine:
+
+| Command                                | What it does                       |
+| -------------------------------------- | ---------------------------------- |
+| `just build pkg hello`                 | x86\_64 → x86\_64                  |
+| `just build pkg hello aarch64 aarch64` | x86\_64 → aarch64 (cross-compiled) |
+
+Integration checks only run when the target CPU matches the build machine's CPU, because they execute the produced binaries.
+
+## Package outputs
+
+`just build pkg <name> [arch] [target]` builds a test package:
+
+<Tabs>
+  <TabItem label="just">
+    ```sh
+    just build pkg hello
+    ```
+  </TabItem>
+
+  <TabItem label="nix">
+    ```sh
+    nix build .#testPackages.x86_64-linux.x86_64-ardos-linux-gnu.hello
+    ```
+  </TabItem>
+</Tabs>
+
+The `nix` form spells out the build machine and target triple, which is where `just` gets the arguments from.
+
+Test packages available for every build system and target triple:
+
+| Output          | What it is                                              |
+| --------------- | ------------------------------------------------------- |
+| `hellolibrary`  | Shared library mapped to `/hellolibrary/`               |
+| `hello`         | Binary linking `hellolibrary`, mapped to `/hello/hello` |
+| `glibcTest`     | Binary and library for glibc runtime checks             |
+| `testEtc`       | `/etc/passwd` and `/etc/group` files                    |
+| `ardos-sysroot` | Assembled runtime tree for the closure of `hello`       |
+| `ardos-rom`     | SquashFS image of that sysroot                          |
+| `vm-run`        | QEMU launch script bundling kernel, initramfs, and ROM  |
+| `stdenv`        | The Ardos-patched cross stdenv                          |
+| `default`       | `ardos-rom` for the build platform                      |
+
+For example, `just build pkg hello` stages the result at `build/pkg/hello`.
+
+## Checks
+
+`just check <type> <name> [arch] [target]` builds and runs a check, and `test` is an alias for it:
+
+<Tabs>
+  <TabItem label="just">
+    ```sh
+    just check unit hello-binary
+    ```
+  </TabItem>
+
+  <TabItem label="nix">
+    ```sh
+    nix build .#checks.x86_64-linux.x86_64-ardos-linux-gnu-unit-hello-binary
+    ```
+  </TabItem>
+</Tabs>
+
+Checks are organized by scope:
+
+| Type          | Checks                                                   | What they validate                                                                             |
+| ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `unit`        | `hello-binary`, `glibc-test-binary`                      | ELF properties: interpreter path, RPATH contents, no Nix store leaks                           |
+| `integration` | `hello`, `glibc-test-run`                                | Binaries run inside a proot chroot of the sysroot, with stdout, stderr, and exit code compared |
+| `e2e`         | `minimal`, `combined`, `toolchain-config`, `nss-plugins` | Complete ROM builds, optionally with `toolchainConfig`, `glibcPlugins`, and a validation check |
+
+Examples:
+
+```sh
+just check unit hello-binary
+just check integration hello
+just check e2e combined
+```
+
+`nix flake check` runs the full check set for every configured build system and target.
+
+## Development environments
+
+`just env` enters the default toolset shell, the same as `nix develop .#default`. It provides `just`, git, `nix-output-monitor`, cachix, and `alejandra`.
+
+`just env stdenv` adds the cross toolchain to the environment, the same as `nix develop .#stdenv`: the `x86_64-ardos-linux-gnu` compiler is on the path and `$CC` points at it.
+
+## Formatting
+
+Run the formatter for each file type with:
+
+| File type | Command        | Underlying command                          |
+| --------- | -------------- | ------------------------------------------- |
+| Nix       | `just fmt nix` | `nix run nixpkgs#alejandra -- .`            |
+| Rust      | `just fmt rs`  | `nix run nixpkgs#rustfmt -- <rust files>`   |
+| Shell     | `just fmt sh`  | `nix run nixpkgs#shfmt -- -w <shell files>` |
+| Markdown  | `just fmt md`  | `remark` via the docs bun project           |
+
+`just fmt md` runs the remark CLI from the `docs/` directory, formatting every `*.md` and `*.mdx` file in the repository. It loads `docs/remark.config.mjs` (plugins `remark-frontmatter`, `remark-gfm`, `remark-mdx`). It is safe to run over `docs/src/content`: remark-frontmatter preserves the Starlight frontmatter and the docs build passes on the result.
+
+## Related references
+
+- [Instance reference](/reference/instance/) for what the flakes at `.#testPackages` are instances of.
+- [Builders reference](/reference/builders/) for what each named output accepts.

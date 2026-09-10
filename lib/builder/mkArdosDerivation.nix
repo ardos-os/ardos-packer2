@@ -32,13 +32,15 @@
   layoutListToText = entries:
     lib.concatMapStrings (entry: ''
       ${entry.source} -> ${entry.target}
-    '') entries;
+    '')
+    entries;
 
   # Convert a runtimeLayout list to shell commands that write ardos-layout.
   layoutListToLayout = entries:
     lib.concatMapStrings (entry: ''
       printf '%s\n' '${entry.source} -> ${entry.target}' >> $out/nix-support/ardos-layout
-    '') entries;
+    '')
+    entries;
 
   # Generate external mappings file from a list of { drv, runtimeLayout } entries.
   # Each entry's runtimeLayout is written as ardos-layout lines prefixed by a
@@ -46,8 +48,9 @@
   mappingScriptToLayout = mapping: ''
     echo "# ardos-external-mapping ${mapping.drv}" >> "$out"
     ${lib.concatMapStrings (entry: ''
-      printf '%s -> %s\n' "${entry.source}" "${entry.target}" >> "$out"
-    '') mapping.runtimeLayout}
+        printf '%s -> %s\n' "${entry.source}" "${entry.target}" >> "$out"
+      '')
+      mapping.runtimeLayout}
   '';
 
   externalMappingsFile =
@@ -74,9 +77,7 @@ in rec {
   #
   # Usage:
   #   wrapDerivation someDrv { runtimeLayout = [ { source = "lib/..."; target = "/..."; } ]; }
-  wrapDerivation = drv: {
-    runtimeLayout ? [],
-  }: let
+  wrapDerivation = drv: {runtimeLayout ? []}: let
     pname = drv.pname or drv.name;
     version = drv.version or "0";
 
@@ -97,7 +98,7 @@ in rec {
         ardosEarlyInitExe;
       __ardosLdHook__ = ./hooks/ld-wrapper-impl.sh;
       ARDOS_EXTERNAL_MAPPINGS = lib.optionalString (externalMappingsFile != null) "${externalMappingsFile}";
-        ARDOS_CURRENT_PACKAGE_LAYOUT = layoutText;
+      ARDOS_CURRENT_PACKAGE_LAYOUT = layoutText;
 
       postInstall =
         (old.postInstall or "")
@@ -145,10 +146,7 @@ in rec {
     wrappedDrv;
 
   # Convenience wrapper: crane buildPackage + wrapDerivation.
-  buildArdosRustPackage = {
-    runtimeLayout ? [],
-    ...
-  } @ args: let
+  buildArdosRustPackage = {runtimeLayout ? [], ...} @ args: let
     rustArgs = removeAttrs args ["runtimeLayout"];
     # Use `crossPkgs` so crane detects cross-compilation (build != host) and
     # auto-emits CARGO_BUILD_TARGET / CARGO_TARGET_<arch>_LINKER / CC_<arch>
@@ -161,10 +159,11 @@ in rec {
       if crane == null
       then throw "buildArdosRustPackage: crane input is null — pass crane to ap2.init"
       else crane.mkLib crossPkgs;
-    drv = craneLib.buildPackage (rustArgs // {
-      strictDeps = true;
-      doCheck = false;
-    });
+    drv = craneLib.buildPackage (rustArgs
+      // {
+        strictDeps = true;
+        doCheck = false;
+      });
   in
     wrapDerivation drv {
       inherit runtimeLayout;

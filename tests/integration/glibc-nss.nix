@@ -4,11 +4,10 @@
 ## Uses --no-nss to skip NSS resolution tests because Nix's sandbox
 ## bind-mounts /etc/passwd and /etc/group, which proot cannot override.
 ## NSS correctness is validated by the e2e-nss-plugins test.
-
 {
   externalMappings = ctx: import ../fixtures/glibcExternalMappings.nix ctx.ap2Instance.crossPkgs;
 
-  build = {lib, ...}@ctx: {
+  build = {lib, ...} @ ctx: {
     name = "glibc-test-run";
 
     includePackages = [
@@ -17,7 +16,7 @@
 
     command = "/glibc-test/glibc-test";
 
-    args = [ "--no-nss" ];
+    args = ["--no-nss"];
 
     expected = {
       stdout = ''

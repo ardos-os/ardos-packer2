@@ -2,12 +2,9 @@
   buildPkgs,
   crane ? null,
   crossPkgs ? null,
-}:
-let
+}: let
   inherit (buildPkgs) stdenvNoCC cpio gzip;
-
 in {
-
   __functor = self: {
     src,
     name ? "ardos-initrd",
@@ -16,7 +13,7 @@ in {
     stdenvNoCC.mkDerivation {
       inherit name src;
 
-      nativeBuildInputs = [ cpio gzip ];
+      nativeBuildInputs = [cpio gzip];
 
       buildCommand = ''
         mkdir -p $out
@@ -34,15 +31,21 @@ in {
   fromRustBinary =
     if crane == null
     then throw "ardosPacker.initrd.fromRustBinary requires `crane` to be passed to ardosPacker.init ()"
-    else src:
-    let
-      targetCpu = if crossPkgs != null
+    else src: let
+      targetCpu =
+        if crossPkgs != null
         then crossPkgs.stdenv.hostPlatform.cpu
         else "x86_64";
 
       muslCrossTarget = {
-        x86_64  = { pkgs = buildPkgs.pkgsCross.musl64;                       rustTarget = "x86_64-unknown-linux-musl"; };
-        aarch64 = { pkgs = buildPkgs.pkgsCross.aarch64-multiplatform-musl;     rustTarget = "aarch64-unknown-linux-musl"; };
+        x86_64 = {
+          pkgs = buildPkgs.pkgsCross.musl64;
+          rustTarget = "x86_64-unknown-linux-musl";
+        };
+        aarch64 = {
+          pkgs = buildPkgs.pkgsCross.aarch64-multiplatform-musl;
+          rustTarget = "aarch64-unknown-linux-musl";
+        };
       };
       mc = muslCrossTarget.${targetCpu}
         or (throw "initrd.nix: unsupported target CPU for musl cross-compilation: ${targetCpu}");
@@ -55,25 +58,25 @@ in {
         RUSTFLAGS = "-C target-feature=+crt-static";
       };
     in
-    stdenvNoCC.mkDerivation {
-      name = "ardos-initrd";
+      stdenvNoCC.mkDerivation {
+        name = "ardos-initrd";
 
-      nativeBuildInputs = [ cpio gzip ];
+        nativeBuildInputs = [cpio gzip];
 
-      buildCommand = ''
-        mkdir -p $out
-        initrdDir=$(mktemp -d)
-        cp ${rustBin}/bin/* "$initrdDir/init"
-        chmod +x "$initrdDir/init"
-        (
-          cd "$initrdDir"
-          find . -print0 | cpio --null -H newc -o | gzip > $out/initrd.img
-        )
-        
-      '';
+        buildCommand = ''
+          mkdir -p $out
+          initrdDir=$(mktemp -d)
+          cp ${rustBin}/bin/* "$initrdDir/init"
+          chmod +x "$initrdDir/init"
+          (
+            cd "$initrdDir"
+            find . -print0 | cpio --null -H newc -o | gzip > $out/initrd.img
+          )
 
-      meta = {
-        description = "Ardos initramfs built from a Rust crate";
+        '';
+
+        meta = {
+          description = "Ardos initramfs built from a Rust crate";
+        };
       };
-    };
 }

@@ -5,8 +5,14 @@ mkArdosDerivation {
   src = ./src;
 
   runtimeLayout = [
-    { source = "bin/glibc-test"; target = "/glibc-test/glibc-test"; }
-    { source = "lib/"; target = "/glibc-test/lib/"; }
+    {
+      source = "bin/glibc-test";
+      target = "/glibc-test/glibc-test";
+    }
+    {
+      source = "lib/";
+      target = "/glibc-test/lib/";
+    }
   ];
 
   buildPhase = ''

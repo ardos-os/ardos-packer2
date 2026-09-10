@@ -30,9 +30,9 @@ The Ardos overlay does only target-toolchain work:
 
 1. Patch autotools `config.sub` files so source packages accept the Ardos target
    triplet.
-1. Wrap the target `stdenv` so Ardos target packages receive the setup hook from
+2. Wrap the target `stdenv` so Ardos target packages receive the setup hook from
    `lib/builder/setup`.
-1. Install the stable linker-wrapper stub from `lib/builder/hooks/ld-wrapper.sh`
+3. Install the stable linker-wrapper stub from `lib/builder/hooks/ld-wrapper.sh`
    into cross bintools.
 
 The stable linker stub is copied into the toolchain, while the mutable linker

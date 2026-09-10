@@ -15,22 +15,23 @@
   limine,
 }: let
   targetCpu = crossPkgs.stdenv.hostPlatform.cpu;
-  ovmf        = import ./ovmf.nix { inherit buildPkgs; };
-  launch      = import ./launch-script.nix { inherit buildPkgs lib targetCpu; };
+  ovmf = import ./ovmf.nix {inherit buildPkgs;};
+  launch = import ./launch-script.nix {inherit buildPkgs lib targetCpu;};
 in {
   inherit ovmf kernel limine;
 
-  launch = args: launch {
-    ovmf-code = args.ovmf-code or ovmf;
-    ovmf-vars = args.ovmf-vars or ovmf;
-    kernel-params = args.kernel-params or "";
-    kernel = args.kernel or kernel;
-    initrd = args.initrd;
-    limine = args.limine or limine;
-    rom = args.rom;
-    system-disk-size = args.system-disk-size or "2G";
-    user-disk-size = args.user-disk-size or "10G";
-    smp = args.smp or "4";
-    memory = args.memory or "4G";
-  };
+  launch = args:
+    launch {
+      ovmf-code = args.ovmf-code or ovmf;
+      ovmf-vars = args.ovmf-vars or ovmf;
+      kernel-params = args.kernel-params or "";
+      kernel = args.kernel or kernel;
+      initrd = args.initrd;
+      limine = args.limine or limine;
+      rom = args.rom;
+      system-disk-size = args.system-disk-size or "2G";
+      user-disk-size = args.user-disk-size or "10G";
+      smp = args.smp or "4";
+      memory = args.memory or "4G";
+    };
 }

@@ -23,23 +23,27 @@
       x86_64-ardos-linux-gnu = "ld-linux-x86-64.so.2";
       aarch64-ardos-linux-gnu = "ld-linux-aarch64.so.1";
     };
-    ldName = linkerNames.${ctx.targetTriple} or (throw
-      "toolchain-config e2e test: no linker name defined for ${ctx.targetTriple}");
-  in ctx.buildPkgs.runCommand "e2e-toolchain-config-check" {} ''
-    ld="${sysroot}/ardos/lib/${ldName}"
-    if [ ! -f "$ld" ]; then
-      echo "FAIL: dynamic linker not found at $ld" >&2
-      exit 1
-    fi
+    ldName =
+      linkerNames.${
+        ctx.targetTriple
+      } or (throw
+        "toolchain-config e2e test: no linker name defined for ${ctx.targetTriple}");
+  in
+    ctx.buildPkgs.runCommand "e2e-toolchain-config-check" {} ''
+      ld="${sysroot}/ardos/lib/${ldName}"
+      if [ ! -f "$ld" ]; then
+        echo "FAIL: dynamic linker not found at $ld" >&2
+        exit 1
+      fi
 
-    # The linker must not contain embedded /nix/store paths.
-    if strings "$ld" | grep -q '/nix/store/'; then
-      echo "FAIL: dynamic linker contains /nix/store paths:" >&2
-      strings "$ld" | grep '/nix/store/' >&2
-      exit 1
-    fi
+      # The linker must not contain embedded /nix/store paths.
+      if strings "$ld" | grep -q '/nix/store/'; then
+        echo "FAIL: dynamic linker contains /nix/store paths:" >&2
+        strings "$ld" | grep '/nix/store/' >&2
+        exit 1
+      fi
 
-    echo "PASS: toolchain-config e2e check" >&2
-    touch $out
-  '';
+      echo "PASS: toolchain-config e2e check" >&2
+      touch $out
+    '';
 }

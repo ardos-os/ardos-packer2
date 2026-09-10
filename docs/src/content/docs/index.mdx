@@ -1,0 +1,61 @@
+---
+title: Ardos Packer 2
+description: Build Ardos packages and system images with Nix.
+template: splash
+hero:
+  tagline: Build packages for Ardos, assemble their runtime filesystem, and boot a development image with QEMU.
+  image:
+    file: ../../assets/ardos-packer2.svg
+  actions:
+    - text: Build your first package
+      link: /tutorials/first-build/
+      icon: right-arrow
+    - text: Browse the API
+      link: /reference/instance/
+      variant: secondary
+---
+
+import {Card, CardGrid, LinkButton} from '@astrojs/starlight/components'
+import {ContainerSection} from '@six-tech/starlight-theme-six/components'
+
+<ContainerSection>
+  ## Choose a starting point
+
+  Ardos Packer 2 is a Nix library for building Ardos OS artifacts. Packages declare their runtime locations, and the build pipeline translates paths and assembles the files into a SquashFS ROM.
+
+  <CardGrid>
+    <Card title="Tutorial: build your first image" icon="rocket">
+      Sets up your own project flake and builds a shared library, a program, a sysroot, and a ROM.
+
+      <LinkButton href="/tutorials/first-build/">Start the tutorial</LinkButton>
+    </Card>
+
+    <Card title="How-to guides" icon="puzzle">
+      Add packages, map dependencies, assemble images, and run a VM.
+
+      <LinkButton href="/how-to/add-package/">Open the guides</LinkButton>
+    </Card>
+
+    <Card title="Reference" icon="setting">
+      Describes initialization, builders, layouts, and repository commands.
+
+      <LinkButton href="/reference/instance/">Browse the API</LinkButton>
+    </Card>
+
+    <Card title="Explanation" icon="open-book">
+      Describes the build stages and why runtime paths need translation.
+
+      <LinkButton href="/explanation/build-pipeline/">Read the explanation</LinkButton>
+    </Card>
+
+    <Card title="Contributing" icon="pencil">
+      Run the repository commands, build for another target, check your changes, and format code.
+
+      <LinkButton href="/contributing/commands/">See the commands</LinkButton>
+    </Card>
+  </CardGrid>
+
+  ## Working in this repository
+
+  The examples target x86\_64 and aarch64 Linux. Start with a Linux build machine and Nix with flakes enabled. The [repository commands](/contributing/commands/) distinguish the build CPU from the target CPU and list the available package outputs.
+</ContainerSection>

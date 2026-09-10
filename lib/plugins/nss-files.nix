@@ -18,7 +18,6 @@
   glibc,
   runCommand,
 }:
-
 runCommand "glibc-nss-files" {} ''
   mkdir -p $out/lib
   for f in "${glibc}"/lib/libnss_files.so*; do
@@ -29,7 +28,8 @@ runCommand "glibc-nss-files" {} ''
     echo "error: nss-files plugin found no libnss_files.so in ${glibc}/lib/" >&2
     exit 1
   fi
-'' // {
+''
+// {
   passthru.glibcPlugin = {
     name = "nss-files";
     nssDatabases = {

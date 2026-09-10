@@ -30,7 +30,7 @@ Package and check recipes accept optional architecture and target arguments; see
 
 ## Coding Style & Naming Conventions
 
-Format Nix with `alejandra`, Rust with `rustfmt`, shell scripts with `shfmt`, and Markdown with `mdformat`. Preserve existing two-space Nix indentation and repository naming patterns: lowercase kebab-free Nix attributes, descriptive module filenames, and Rust `snake_case` identifiers. Prefer small, composable Nix functions and keep target/runtime mapping explicit.
+Format Nix with `alejandra`, Rust with `rustfmt`, shell scripts with `shfmt`, and Markdown and MDX with `remark` (via the docs bun project, `just fmt md`). Preserve existing two-space Nix indentation and repository naming patterns: lowercase kebab-free Nix attributes, descriptive module filenames, and Rust `snake_case` identifiers. Prefer small, composable Nix functions and keep target/runtime mapping explicit.
 
 ## Testing Guidelines
 

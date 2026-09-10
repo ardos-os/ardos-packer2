@@ -114,12 +114,20 @@
       pub(crate) fn target() -> Target {
           let mut base = base::linux_gnu::opts();
           base.cpu = "${ardosTargetCfg.cpu}".into();
-          base.plt_by_default = ${if ardosTargetCfg.pltByDefault then "true" else "false"};
+          base.plt_by_default = ${
+        if ardosTargetCfg.pltByDefault
+        then "true"
+        else "false"
+      };
           base.max_atomic_width = Some(${toString ardosTargetCfg.maxAtomicWidth});
           base.stack_probes = StackProbeType::Inline;
           base.static_position_independent_executables = true;
           base.supported_sanitizers = ${ardosTargetCfg.sanitizers};
-          base.supports_xray = ${if ardosTargetCfg.supportsXray then "true" else "false"};
+          base.supports_xray = ${
+        if ardosTargetCfg.supportsXray
+        then "true"
+        else "false"
+      };
           base.has_rpath = false;
           base.vendor = "ardos".into();
           ${ardosTargetCfg.preLinkArgs}
@@ -195,17 +203,19 @@
       # this override.
       rustPackages = prev.rustPackages.overrideScope (_sFinal: sPrev: {
         rustc-unwrapped = sPrev.rustc-unwrapped.overrideAttrs (old: {
-          postConfigure = (old.postConfigure or "") + ''
-            echo "=== ap2: injecting built-in Ardos target (scope) ==="
-            TARGET_DIR=compiler/rustc_target/src/spec/targets
-            echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
-            cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
-          ${ardosTargetRs}
-          RSEOF
+          postConfigure =
+            (old.postConfigure or "")
+            + ''
+                echo "=== ap2: injecting built-in Ardos target (scope) ==="
+                TARGET_DIR=compiler/rustc_target/src/spec/targets
+                echo "Writing $TARGET_DIR/${ardosTargetCfg.rustModule}.rs"
+                cat > "$TARGET_DIR/${ardosTargetCfg.rustModule}.rs" << 'RSEOF'
+              ${ardosTargetRs}
+              RSEOF
 
-            echo "Registering ${targetPlatform.rust.rustcTargetSpec} in supported_targets!"
-            sed -i '/^supported_targets! {$/a\    ("${targetPlatform.rust.rustcTargetSpec}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
-          '';
+                echo "Registering ${targetPlatform.rust.rustcTargetSpec} in supported_targets!"
+                sed -i '/^supported_targets! {$/a\    ("${targetPlatform.rust.rustcTargetSpec}", ${ardosTargetCfg.rustModule}),' compiler/rustc_target/src/spec/mod.rs
+            '';
         });
         rustc = sPrev.rustc.override {
           rustc-unwrapped = _sFinal.rustc-unwrapped;
@@ -218,7 +228,7 @@
       };
       rustc = final.rustPackages.rustc;
       rustc-unwrapped = final.rustPackages.rustc-unwrapped;
-      
+
       bintools =
         if isCrossTool
         then
@@ -240,9 +250,10 @@
           glibc = prev.glibc;
           runtimePrefix = glibcConfig.runtimePrefix or null;
         };
-      in (overlay final prev).glibc.overrideAttrs (old: {
-        preConfigure = patchAutotoolsConfig (old.preConfigure or null);
-      });
+      in
+        (overlay final prev).glibc.overrideAttrs (old: {
+          preConfigure = patchAutotoolsConfig (old.preConfigure or null);
+        });
 
       # glibc-nolibgcc is the bootstrap variant (libgcc=null) used to
       # build libgcc.  Because `override` preserves `overrideAttrs`,
@@ -250,7 +261,7 @@
       # and install_root overrides, which break its install (double-nested
       # store paths) and would also break libgcc (wrong library paths).
       # Pin it to the pre-overlay version so the bootstrap chain stays clean.
-      glibc-nolibgcc = prev.glibc.override { libgcc = null; };
+      glibc-nolibgcc = prev.glibc.override {libgcc = null;};
 
       # Redirect nixpkgs' libgcc (defined inline with glibc.override) to
       # use the clean glibc-nolibgcc above instead of inheriting ours.

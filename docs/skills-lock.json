@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "diataxis": {
+      "source": "smithery.ai",
+      "sourceUrl": "https://smithery.ai/skills/arisng/diataxis",
+      "sourceType": "well-known",
+      "computedHash": "691dd53647e1e2846b762867f1cf9e719eef09de1a1120a9e1cbfeb8cb11ae6c",
+      "wellKnownDigest": "sha256:4e035bc2bc990ecad6822b4003cb04f252046d4068270d1af674c1f2e7bf68d5"
+    }
+  }
+}

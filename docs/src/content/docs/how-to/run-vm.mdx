@@ -1,0 +1,116 @@
+---
+title: Run the image in a virtual machine
+description: Build a QEMU launch script from a kernel, initramfs, and ROM, then boot it.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components'
+
+This guide shows you how to boot the kernel, initramfs, and ROM together in QEMU on your development machine, using the launch script `ap2.vm.launch` produces.
+
+## When to use this guide
+
+Use this when you have the three boot artifacts, a kernel, an initramfs, and a ROM, and you want to see the OS boot without real hardware.
+
+## Before you start
+
+- A kernel, initramfs, and ROM. See the [builders reference](/reference/builders/) for `kernel`, `initrd`, and `rom`.
+- QEMU with KVM enabled for your CPU. The launch script sets `accel=kvm`.
+- The `nbd` kernel module. The script provisions the system and user disks through `qemu-nbd`.
+- `sudo` access. Disk provisioning and mounting run as root.
+
+## Build the launch script
+
+The launch fills in the bootloader, firmware, and hardware defaults from the instance, so you provide the three boot artifacts:
+
+```nix
+ap2.vm.launch {
+  kernel = myKernel;
+  initrd = myInitrd;
+  rom = myRom;
+}
+```
+
+Options:
+
+| Option                   | Type       | Default         | Description                                                   |
+| ------------------------ | ---------- | --------------- | ------------------------------------------------------------- |
+| `kernel`                 | derivation | instance kernel | Kernel image (`bzImage` or `Image`)                           |
+| `initrd`                 | derivation | required        | `initrd.img` from `ap2.initrd` or `ap2.initrd.fromRustBinary` |
+| `rom`                    | derivation | required        | SquashFS from `ap2.rom`                                       |
+| `limine`                 | derivation | instance limine | Limine bootloader binary                                      |
+| `ovmf-code`, `ovmf-vars` | derivation | instance ovmf   | OVMF firmware, code and variables                             |
+| `kernel-params`          | string     | `""`            | Extra kernel command line arguments                           |
+| `memory`                 | string     | `"4G"`          | VM memory                                                     |
+| `smp`                    | string     | `"4"`           | Number of vCPUs                                               |
+| `system-disk-size`       | string     | `"2G"`          | Size of the new system disk                                   |
+| `user-disk-size`         | string     | `"10G"`         | Size of the new user disk                                     |
+
+Build the script and run it:
+
+```sh
+nix build .#testPackages.x86_64-linux.x86_64-ardos-linux-gnu.vm-run
+./result/bin/ardos-vm-run
+```
+
+On first run the script asks for `sudo`. It loads `nbd`, creates the two qcow2 disks under `build/vm/`, partitions them, copies the kernel, initramfs, and Limine binary to the EFI partition, writes `limine.conf`, and copies the ROM to the system partition. Then QEMU starts and attaches to the SPICE socket at `/tmp/ardos-spice.sock`.
+
+The run script reads these environment variables when set:
+
+| Variable           | Default                   | Purpose                              |
+| ------------------ | ------------------------- | ------------------------------------ |
+| `MEMORY`           | `"4G"`                    | VM memory override                   |
+| `SMP`              | `"4"`                     | vCPU count override                  |
+| `SYSTEM_DISK`      | `./build/vm/system.qcow2` | System disk path                     |
+| `SYSTEM_DISK_SIZE` | from the derivation       | System disk size                     |
+| `USER_DISK`        | `./build/vm/user.qcow2`   | User disk path                       |
+| `USER_DISK_SIZE`   | from the derivation       | User disk size                       |
+| `SPICE_SOCK`       | `/tmp/ardos-spice.sock`   | SPICE socket path                    |
+| `ARDOS_MNT`        | `/mnt/ardos-vm`           | Mount point used during provisioning |
+| `KERNEL_PARAMS`    | from `kernel-params`      | Kernel command line override         |
+
+The script also starts `remote-viewer` against the SPICE socket when it is installed.
+
+## Variations
+
+**Kernel command line arguments**
+
+Pass `kernel-params` to the derivation, or override at run time:
+
+```sh
+KERNEL_PARAMS="init=/bin/sh" ./result/bin/ardos-vm-run
+```
+
+**Different hardware**
+
+The script picks the QEMU machine, CPU, and GPU for the target.
+
+<Tabs>
+  <TabItem label="x86_64">
+    Uses `pc-q35` with a host CPU and `virtio-vga-gl`.
+  </TabItem>
+
+  <TabItem label="aarch64">
+    Uses the `virt` machine with a `cortex-a72` CPU and `virtio-gpu-gl`.
+  </TabItem>
+</Tabs>
+
+**An existing image**
+
+Set `SYSTEM_DISK` to an existing qcow2 and the script attaches it instead of creating a new one. The user disk is created on demand if it does not exist.
+
+## Troubleshooting
+
+**Problem: QEMU will not start**
+The script requires `accel=kvm`. Check that `/dev/kvm` exists and that your user can access it. On machines without virtualization, QEMU fails with an accelerator error.
+
+**Problem: `modprobe nbd` fails or `/dev/nbd*` is not usable**
+The `nbd` kernel module is missing or blocked. Install it or load it as root. The script runs as root through `sudo`, so per-user device rules are not involved.
+
+**Problem: nothing appears on screen**
+The VM has no display attached; it exposes a SPICE socket instead. Connect a SPICE client to `SPICE_SOCK`, or run with `-serial stdio` style parameters already set for the serial console output.
+
+## Related guides
+
+- [Assemble the system image](/how-to/assemble-image/) to build the ROM this script copies.
+- [Add a package to an Ardos image](/how-to/add-package/) if the image needs new contents.
+- [Builders reference](/reference/builders/) for the `kernel`, `initrd`, and `rom` builders.

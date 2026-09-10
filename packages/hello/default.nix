@@ -17,7 +17,10 @@ mkArdosDerivation {
   NIX_DEBUG = 1;
 
   runtimeLayout = [
-    { source = "bin/hello"; target = "/hello/hello"; }
+    {
+      source = "bin/hello";
+      target = "/hello/hello";
+    }
   ];
 
   buildPhase = ''

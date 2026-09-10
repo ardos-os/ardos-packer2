@@ -3,7 +3,7 @@
   crossPkgs,
   externalMappings ? [],
   glibcPlugins ? [],
-  toolchainConfig ? {}
+  toolchainConfig ? {},
 }: let
   lib = buildPkgs.lib;
   rustScript = import ../builder/rustScript.nix {inherit buildPkgs;};
@@ -11,33 +11,47 @@
   # Determine where glibc looks for libraries and config at runtime.
   glibcRuntimePrefix = (toolchainConfig.glibc or {}).runtimePrefix or null;
   glibcEtcDir =
-    if glibcRuntimePrefix != null then "/etc"
+    if glibcRuntimePrefix != null
+    then "/etc"
     else "etc";
   pluginLibDir =
-    if glibcRuntimePrefix != null then "${glibcRuntimePrefix}/lib"
+    if glibcRuntimePrefix != null
+    then "${glibcRuntimePrefix}/lib"
     else "lib";
 
   # --- glibc plugin / nsswitch.conf generation ---
-  pluginDecls = map (p:
-    if p ? passthru.glibcPlugin then p.passthru.glibcPlugin
-    else throw "glibcPlugin: ${p.name or "<unknown>"} is missing passthru.glibcPlugin"
-  ) glibcPlugins;
+  pluginDecls =
+    map (
+      p:
+        if p ? passthru.glibcPlugin
+        then p.passthru.glibcPlugin
+        else throw "glibcPlugin: ${p.name or "<unknown>"} is missing passthru.glibcPlugin"
+    )
+    glibcPlugins;
 
   # Merge nssDatabases from all plugins: concatenate module lists per database.
-  mergedNssDatabases = lib.foldl' (acc: decl:
-    acc // (lib.mapAttrs' (db: modules:
-      lib.nameValuePair db ((acc.${db} or []) ++ modules)
-    ) (decl.nssDatabases or {}))
-  ) {} pluginDecls;
+  mergedNssDatabases =
+    lib.foldl' (
+      acc: decl:
+        acc
+        // (lib.mapAttrs' (
+          db: modules:
+            lib.nameValuePair db ((acc.${db} or []) ++ modules)
+        ) (decl.nssDatabases or {}))
+    ) {}
+    pluginDecls;
 
-  nssDatabaseLines = lib.concatStringsSep "\n" (lib.mapAttrsToList (db: modules:
-    "${db}: ${lib.concatStringsSep " " modules}"
-  ) mergedNssDatabases);
+  nssDatabaseLines = lib.concatStringsSep "\n" (lib.mapAttrsToList (
+      db: modules: "${db}: ${lib.concatStringsSep " " modules}"
+    )
+    mergedNssDatabases);
 
   nssExtraLines = lib.concatStringsSep "\n" (
-    lib.concatMap (decl:
-      lib.filter (line: line != "") (lib.splitString "\n" (decl.nssExtraLines or ""))
-    ) pluginDecls
+    lib.concatMap (
+      decl:
+        lib.filter (line: line != "") (lib.splitString "\n" (decl.nssExtraLines or ""))
+    )
+    pluginDecls
   );
 
   nsswitchConfText = lib.concatStringsSep "\n" (
@@ -58,8 +72,9 @@
   mappingScriptToLayout = mapping: ''
     echo "# ardos-external-mapping ${mapping.drv}" >> "$out"
     ${lib.concatMapStrings (entry: ''
-      printf '%s -> %s\n' "${entry.source}" "${entry.target}" >> "$out"
-    '') mapping.runtimeLayout}
+        printf '%s -> %s\n' "${entry.source}" "${entry.target}" >> "$out"
+      '')
+      mapping.runtimeLayout}
   '';
 
   externalMappingsFile =
@@ -83,28 +98,31 @@ in {
     buildPkgs.runCommand name {
       nativeBuildInputs = [buildPkgs.coreutils populateSysroot];
     } (''
-      work="$PWD/sysroot"
-      mkdir -p "$work"
+        work="$PWD/sysroot"
+        mkdir -p "$work"
 
-      populate-sysroot ${closure} ${externalMappingsFile} "$work"
+        populate-sysroot ${closure} ${externalMappingsFile} "$work"
 
-      ${lib.optionalString hasGlibcPlugins ''
-        if grep -Fxq "${crossPkgs.glibc}" ${closure}/store-paths; then
-          ${lib.concatMapStringsSep "\n" (plugin: ''
-            if [ -d "${plugin}/lib" ]; then
-              mkdir -p "$work/${pluginLibDir}"
-              cp -R --no-preserve=mode "${plugin}/lib"/. "$work/${pluginLibDir}"/
-            fi
-          '') glibcPlugins}
+        ${lib.optionalString hasGlibcPlugins ''
+          if grep -Fxq "${crossPkgs.glibc}" ${closure}/store-paths; then
+            ${lib.concatMapStringsSep "\n" (plugin: ''
+              if [ -d "${plugin}/lib" ]; then
+                mkdir -p "$work/${pluginLibDir}"
+                cp -R --no-preserve=mode "${plugin}/lib"/. "$work/${pluginLibDir}"/
+              fi
+            '')
+            glibcPlugins}
 
 
-          mkdir -p "$work/${glibcEtcDir}"
-          cp ${nsswitchConf} "$work/${glibcEtcDir}/nsswitch.conf"
-        fi
-      ''}
+            mkdir -p "$work/${glibcEtcDir}"
+            cp ${nsswitchConf} "$work/${glibcEtcDir}/nsswitch.conf"
+          fi
+        ''}
 
-      cp -a "$work"/. "$out"/
-    '' + (builtins.concatStringsSep "\n" (map (folderToCreate:
-    ''mkdir -p "$out/${folderToCreate}" || true''
-  ) ensureFolders)));
+        cp -a "$work"/. "$out"/
+      ''
+      + (builtins.concatStringsSep "\n" (map (
+          folderToCreate: ''mkdir -p "$out/${folderToCreate}" || true''
+        )
+        ensureFolders)));
 }

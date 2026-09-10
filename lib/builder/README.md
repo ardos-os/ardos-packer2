@@ -41,13 +41,13 @@ When multiple entries target the same path, the **last entry wins**.
 
 1. The target `stdenv` from `lib/toolchain` injects the setup hook from
    `setup/`.
-1. Setup tools collect declared layouts from the current package and its visible
+2. Setup tools collect declared layouts from the current package and its visible
    dependencies into `ARDOS_RUNTIME_MAP`. The current package's own layout is
    passed via `ARDOS_CURRENT_PACKAGE_LAYOUT` so folder mappings are available
    before build artifacts exist (enabling self-dependency).
-1. The linker hook in `hooks/` translates Nix-store RPATH and dynamic-linker
+3. The linker hook in `hooks/` translates Nix-store RPATH and dynamic-linker
    arguments to the final Ardos runtime paths using longest-prefix matching.
-1. `postInstall` writes the current package's layout metadata directly to
+4. `postInstall` writes the current package's layout metadata directly to
    `ardos-layout`.
 
 This separation keeps build isolation intact: compilers see declared Nix-store

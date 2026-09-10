@@ -1,0 +1,26 @@
+{
+  "name": "ardos-packer2-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.41.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@six-tech/starlight-theme-six": "^1.0.16",
+    "astro": "^7.2.10",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "remark-cli": "^12.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-mdx": "^3.1.1"
+  }
+}

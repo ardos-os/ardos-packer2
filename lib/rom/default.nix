@@ -1,5 +1,4 @@
-{buildPkgs}:
-{
+{buildPkgs}: {
   sysroot,
   name ? "ardos-rom",
 }:

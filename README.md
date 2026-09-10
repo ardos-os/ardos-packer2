@@ -1,9 +1,18 @@
-# Ardos Packer 2
+<p align="center">
+  <a href="https://ardos-os.github.io/ardos-packer2">
+    <img width="744" height="296" alt="Logo" src="https://github.com/user-attachments/assets/fd82d890-d1c1-40ab-a5ed-76945c89d001" />
+  </a>
+</p>
 
-This is a rewrite of [ardos-packer](https://github.com/ardos-os/ardos-packer) in the Nix language, prioritizing reproducibility,
-isolated package builds, and better support for cross-compiling.
+<h1 align="center">Ardos Packer</h1>
 
-> WARNING: This is still experimental and unfinished so don't judge too soon.
+### [Read the docs →](https://ardos-os.github.io/ardos-packer2/getting-started)
+
+## What is Ardos Packer?
+
+**Ardos Packer** is the official build system of the [**Ardos OS**](https://github.com/ardos-os/ardos) operating system. It compiles the kernel, assembles the immutable system image, builds the initramfs, and can boot the OS inside a QEMU VM for testing.
+
+It is written in the Nix language, prioritizing reproducibility, isolated package builds, and better support for cross-compiling.
 
 ## How is this even possible?
 
@@ -15,14 +24,13 @@ The Ardos OS `stdenv` is built on top of the Nixpkgs `stdenv` frameworks; howeve
 
 This answers the building story, but how do we go from `/nix/store/gibberish` to clean Ardos OS paths inside the squashfs?
 
-______________________________________________________________________
+***
 
 ## Technical Architecture
 
 The transition from the Nix store model to the final Ardos FHS runtime model relies on three key mechanisms: **Runtime Layout Mapping**, **Linker RUNPATH Translation**, and **Shebang Rewriting**.
 
-![diagram of the process](./docs/process-whiteboard.svg)
-
+![diagram of the process](./assets/process-whiteboard.svg)
 
 ### 1. Runtime Layout Mapping (`mkArdosDerivation`)
 
@@ -48,15 +56,14 @@ The layout entries are written directly to `$out/nix-support/ardos-layout` witho
 
 When multiple packages map to the same target path, the **last entry wins** (later entries in the layout override earlier ones).
 
-------
+***
 
 #### Adding external non-ardos derivations
-
 
 Some target packages come directly from nixpkgs and cannot reasonably be
 changed just to add Ardos metadata.
 
-![unknown mapping diagram](./docs/unknown-mapping.svg)
+![unknown mapping diagram](./assets/unknown-mapping.svg)
 
 `ap2.init` therefore accepts an
 `externalMappings` option: a list (or a function from `crossPkgs` to a list) of
@@ -82,7 +89,7 @@ ap2.init {
 
 Because compiled binaries must find their shared library dependencies (like `libc.so` or `libskia.so`) at runtime in their final Ardos paths (e.g. `/ardos/lib` or `/ardos/graphics`), we cannot let them retain Nix store references in their `RUNPATH` headers. At the same time, we must avoid running fragile tools like `patchelf` on final images.
 
-To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/builder/hooks/ld-wrapper.sh](/lib/builder/hooks/ld-wrapper.sh) (injector) + [lib/builder/hooks/ld-wrapper-impl.sh](lib/builder/hooks/ld-wrapper-impl.sh) (bash wrapper) + [lib/builder/hooks/ardos_ld_translate.rs](lib/builder/hooks/ardos_ld_translate.rs) (rust script with the actual argument translation).
+To solve this, we overlay the cross-linker wrapper with a custom hook: [lib/builder/hooks/ld-wrapper.sh](/lib/builder/hooks/ld-wrapper.sh) (injector) + [lib/builder/hooks/ld-wrapper-impl.sh](lib/builder/hooks/ld-wrapper-impl.sh) (bash wrapper) + [lib/builder/hooks/ardos\_ld\_translate.rs](lib/builder/hooks/ardos_ld_translate.rs) (rust script with the actual argument translation).
 
 - During package compilation, an Ardos setup hook aggregates all `runtimeLayout` maps of the package and its dependencies into a single translation file (`$ARDOS_RUNTIME_MAP`). Folder mappings are preserved as-is — the ld translator expands them on-the-fly via longest-prefix matching.
 - The linker wrapper intercepts all `-rpath` flags and translates them:
@@ -99,10 +106,10 @@ Executable shell scripts in Nix typically have shebangs pointing to `/nix/store/
 To run natively on Ardos, these shebangs must point to target packages that have runtime mappings (e.g., `/ardos/bin/bash`).
 Our setup hook intercepts and parses all shebangs in the `postFixup` phase of target packages. Using the aggregated `$ARDOS_RUNTIME_MAP`, it matches the Nix store hash of the interpreter against declared layouts and rewrites the shebang path to point to the Ardos location (e.g., `#!/nix/store/.../bin/bash` → `#!/ardos/bin/bash`).
 
-
 ### Boot and Kernel
 
 Ardos packer also brings some utilities to configure the kernel, initrd and a bootloader called [limine](https://github.com/limine-bootloader/limine).
+
 ```nix
 # Linux kernel via buildLinux (cross-compiled for ardos target)
 ardosPacker.kernel {
@@ -127,8 +134,7 @@ ardosPacker.limine
 
 Limine is famous amongst hobby OS developers for its simplicity and developer experience with it's own special protocol with the same name (formerly called stivale). But limine also supports booting linux, the ability for it to work without systemd and without bringing all of bloat of grub is what caught my attention to use it in ardos. Limine is self contained in one UEFI binary and it only requires a limine.conf which is a super easy human readable format and configurations don't go past 5 lines usually.
 
-It's the perfect bootloader for the case you don't want the user to even care what a bootloader is, it just goes past it without seeing anything, it is super fast and
-slick.
+It's the perfect bootloader for the case you don't want the user to even care what a bootloader is, it just goes past it without seeing anything, it is super fast and slick.
 
 ## VM / QEMU
 
@@ -163,6 +169,7 @@ The `vm.launch` wrapper fills in sensible defaults for `limine`, `ovmf-code`, an
 ## Development Workflows
 
 We use `just` as our task runner. The task configuration is split into discoverable submodules:
+
 ```
 [tiago@tiago-hp ardos-packer2]$ just
 Available recipes:
@@ -178,6 +185,7 @@ Available recipes:
         rs       # [alias: rust]
         sh       # [aliases: script, shell]
 ```
+
 ## Reliance on nixpkgs
 
 You might say because we currently rely on nixpkgs recipes that Ardos OS is not fully independent from Nix OS, you're not
@@ -186,4 +194,3 @@ on the same code Nix OS is built on.
 
 We do have a plan to migrate over to our own derivations instead and completely break free from nixpkgs to manage the toolchain
 and build packages targetting Ardos OS, but that's not just viable right now during this experimental phase.
-
