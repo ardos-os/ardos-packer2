@@ -45,6 +45,6 @@ in
       description = "Limine UEFI bootloader (binary release)";
       homepage = "https://github.com/limine-bootloader/Limine";
       license = lib.licenses.bsd2;
-      platforms = efi.metaPlatforms;
+      platforms = map (arch: "${arch}-linux") (builtins.attrNames efiBinaryByArch);
     };
   }
