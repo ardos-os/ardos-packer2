@@ -11,6 +11,27 @@ This repository is a Nix flake for building Ardos OS artifacts and cross-compili
 
 Keep new functionality in the narrowest applicable `lib/` module, and add or update a corresponding check under `tests/`.
 
+## Documentation
+
+The project documentation is a Starlight site in `docs/` (content under `docs/src/content/docs/`, sidebar and build config in `docs/astro.config.mjs`). It is deployed to GitHub Pages, and every page listed below lives under the `ardos-packer2` base path.
+
+When you change user-visible behavior, update the matching page and its sidebar entry.
+
+- Tutorials
+  - [Build your first Ardos image](https://ardos-os.github.io/ardos-packer2/tutorials/first-build/)
+- How-to guides
+  - [Add a package to an Ardos image](https://ardos-os.github.io/ardos-packer2/how-to/add-package/)
+  - [Use the Cachix binary cache](https://ardos-os.github.io/ardos-packer2/how-to/use-cachix/)
+  - [Assemble the system image](https://ardos-os.github.io/ardos-packer2/how-to/assemble-image/)
+  - [Run the image in a virtual machine](https://ardos-os.github.io/ardos-packer2/how-to/run-vm/)
+- Reference
+  - [Instance](https://ardos-os.github.io/ardos-packer2/reference/instance/) — `ap2.init` options
+  - [Builders](https://ardos-os.github.io/ardos-packer2/reference/builders/) — package builders and `runtimeLayout`
+- Explanation
+  - [About the build pipeline](https://ardos-os.github.io/ardos-packer2/explanation/build-pipeline/) — why runtime paths are translated
+- Contributing
+  - [Repository commands](https://ardos-os.github.io/ardos-packer2/contributing/commands/)
+
 ## Build, Test, and Development Commands
 
 Use Nix with flakes enabled and run commands through the repository’s `just` recipes:
