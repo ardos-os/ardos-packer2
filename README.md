@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://ardos-os.github.io/ardos-packer2"><img src="https://github.com/user-attachments/assets/fd82d890-d1c1-40ab-a5ed-76945c89d001" alt="Logo" height=170></a>
+  <a href="https://ardos-os.github.io/ardos-packer2"><img src="https://github.com/user-attachments/assets/359f7733-8bde-4881-905e-b4d2302b92fa" alt="Logo" height=170></a>
 </p>
 <h1 align="center">Ardos Packer</h1>
 
