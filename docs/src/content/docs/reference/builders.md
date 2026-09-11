@@ -3,7 +3,7 @@ title: Builders reference
 description: Reference for the package builders, runtimeLayout, and the kernel, initrd, limine, rom, and vm builders.
 ---
 
-The builders turn source code or existing derivations into Ardos packages and system artifacts. This page documents their arguments and outputs. Start with the [instance reference](../reference/instance) for how the builders are reached through `ap2.init`.
+The builders turn source code or existing derivations into Ardos packages and system artifacts. This page documents their arguments and outputs. Start with the [instance reference](../../reference/instance/) for how the builders are reached through `ap2.init`.
 
 ## runtimeLayout
 
@@ -165,9 +165,9 @@ Builds the Limine bootloader EFI binary for the instance's target. The result is
 
 `vm.ovmf` is the OVMF firmware pair; it symlinks `OVMF_CODE.fd` and `OVMF_VARS.fd` from nixpkgs' OVMF.
 
-`vm.launch` produces the QEMU launch script `bin/ardos-vm-run`. Its arguments and the run-time environment variables are documented in [Run the image in a virtual machine](../how-to/run-vm).
+`vm.launch` produces the QEMU launch script `bin/ardos-vm-run`. Its arguments and the run-time environment variables are documented in [Run the image in a virtual machine](../../how-to/run-vm/).
 
 ## Related references
 
-- [Instance reference](./instance) for `ap2.init` and where these builders come from.
-- [Add a package to an Ardos image](../how-to/add-package) for the workflow around the package builders.
+- [Instance reference](../instance/) for `ap2.init` and where these builders come from.
+- [Add a package to an Ardos image](../../how-to/add-package/) for the workflow around the package builders.

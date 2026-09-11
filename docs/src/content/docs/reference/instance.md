@@ -103,5 +103,5 @@ mkArdosDerivation {
 
 ## Related references
 
-- [Builders reference](./builders) for what `mkArdosDerivation` and the image builders accept.
-- [About the build pipeline](../explanation/build-pipeline) for what the pipeline does with these settings.
+- [Builders reference](../builders/) for what `mkArdosDerivation` and the image builders accept.
+- [About the build pipeline](../../explanation/build-pipeline/) for what the pipeline does with these settings.
