@@ -3,7 +3,7 @@ title: About the build pipeline
 description: Why Ardos packages declare runtime locations, and how the pipeline translates paths between the Nix store and the final image.
 ---
 
-This page covers the design: why a build system converts Nix store paths into Ardos runtime paths, and how the pipeline arranges that translation. The exact options and outputs live in the [builders reference](/ardos-packer2/reference/builders/).
+This page covers the design: why a build system converts Nix store paths into Ardos runtime paths, and how the pipeline arranges that translation. The exact options and outputs live in the [builders reference](/reference/builders/).
 
 ## The pipeline at a glance
 
@@ -51,6 +51,6 @@ The pipeline takes on nixpkgs to get the cross toolchain, the package recipes, a
 
 ## Further reading
 
-- [Build your first Ardos image](/ardos-packer2/tutorials/first-build/) puts the pipeline to work end to end.
-- [Add a package to an Ardos image](/ardos-packer2/how-to/add-package/) and [Assemble the system image](/ardos-packer2/how-to/assemble-image/) use the pieces described here.
-- [Instance reference](/ardos-packer2/reference/instance/) and [Builders reference](/ardos-packer2/reference/builders/) give the exact options.
+- [Build your first Ardos image](/tutorials/first-build/) puts the pipeline to work end to end.
+- [Add a package to an Ardos image](/how-to/add-package/) and [Assemble the system image](/how-to/assemble-image/) use the pieces described here.
+- [Instance reference](/reference/instance/) and [Builders reference](/reference/builders/) give the exact options.
