@@ -1,16 +1,24 @@
 <p align="center">
-  <a href="https://ardos-os.github.io/ardos-packer2"><img src="https://github.com/user-attachments/assets/359f7733-8bde-4881-905e-b4d2302b92fa" alt="Logo" height=170></a>
+  <a href="https://ardos-os.github.io/ardos-packer2">
+    <img src="https://github.com/user-attachments/assets/359f7733-8bde-4881-905e-b4d2302b92fa" alt="Logo" height="170" />
+  </a>
 </p>
+
 <h1 align="center">Ardos Packer</h1>
 
 <p align="center">
-  <a href="https://github.com/ardos-os/ardos-packer2" target="_blank"><img src="https://img.shields.io/github/stars/ardos-os/ardos-packer2" alt="stars"></a>
-  <a href="https://github.com/ardos-os/ardos" target="_blank"><img src="https://img.shields.io/badge/os-ardos--os-blue" alt="Ardos OS"></a>
+  <a href="https://github.com/ardos-os/ardos-packer2" target="_blank">
+    <img src="https://img.shields.io/github/stars/ardos-os/ardos-packer2" alt="stars" />
+  </a>
+
+  <a href="https://github.com/ardos-os/ardos" target="_blank">
+    <img src="https://img.shields.io/badge/os-ardos--os-blue" alt="Ardos OS" />
+  </a>
 </p>
 
 <div align="center">
   <a href="https://ardos-os.github.io/ardos-packer2/getting-started">Getting Started</a>
-  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <span>  •  </span>
   <a href="https://ardos-os.github.io/ardos-packer2/contributing/commands/">Contributing</a>
 </div>
 
