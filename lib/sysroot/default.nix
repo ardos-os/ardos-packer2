@@ -108,7 +108,7 @@ in {
             ${lib.concatMapStringsSep "\n" (plugin: ''
               if [ -d "${plugin}/lib" ]; then
                 mkdir -p "$work/${pluginLibDir}"
-                cp -R --no-preserve=mode "${plugin}/lib"/. "$work/${pluginLibDir}"/
+                cp -Rf --no-preserve=mode "${plugin}/lib"/. "$work/${pluginLibDir}"/
               fi
             '')
             glibcPlugins}
