@@ -7,12 +7,12 @@ This guide shows you how to add a package to an Ardos image: which builder to us
 
 ## When to use this guide
 
-Use this when you have source code in C, C++, or Rust, or an existing nixpkgs derivation, and you want it inside an Ardos ROM. It assumes you already have an `ap2` instance, meaning `ap2.init` was called and its result is in scope. Building one is covered in the [instance reference](../reference/instance/).
+Use this when you have source code in C, C++, or Rust, or an existing nixpkgs derivation, and you want it inside an Ardos ROM. It assumes you already have an `ap2` instance, meaning `ap2.init` was called and its result is in scope. Building one is covered in the [instance reference](../reference/instance).
 
 ## Before you start
 
 - An `ap2` instance initialized for your target platform.
-- Working packages that assemble into an image; see [Assemble the system image](../how-to/assemble-image/).
+- Working packages that assemble into an image; see [Assemble the system image](../how-to/assemble-image).
 - A rough idea of where each file should end up in the final filesystem.
 
 ## Choose a builder
@@ -126,7 +126,7 @@ ap2.sysroot {
 }
 ```
 
-Follow the rest of the assembly steps in [Assemble the system image](../how-to/assemble-image/).
+Follow the rest of the assembly steps in [Assemble the system image](../how-to/assemble-image).
 
 ## Troubleshooting
 
@@ -144,7 +144,7 @@ Pass `crane` to `ap2.init`. Without it the Rust builder is unavailable.
 
 ## Related guides
 
-- [Assemble the system image](../how-to/assemble-image/) to turn `includePackages` into a ROM.
-- [Run the image in a virtual machine](../how-to/run-vm/) to boot what you built.
-- [Instance reference](../reference/instance/) for the full `ap2.init` option set.
-- [Builders reference](../reference/builders/) for the complete `runtimeLayout` rules.
+- [Assemble the system image](../how-to/assemble-image) to turn `includePackages` into a ROM.
+- [Run the image in a virtual machine](../how-to/run-vm) to boot what you built.
+- [Instance reference](../reference/instance) for the full `ap2.init` option set.
+- [Builders reference](../reference/builders) for the complete `runtimeLayout` rules.

@@ -17,7 +17,7 @@ Working in your own project directory, you add ardos-packer2 as a flake input an
 ## Before you start
 
 - Linux on x86\_64 and Nix with flakes enabled.
-- The first build compiles the cross toolchain for the Ardos target, so it will take some time and disk space to compile. You can skip that with the [Cachix binary cache](../how-to/use-cachix/), which serves the Ardos-patched Rust and GCC builds precompiled. It is updated on CI on every push.
+- The first build compiles the cross toolchain for the Ardos target, so it will take some time and disk space to compile. You can skip that with the [Cachix binary cache](../how-to/use-cachix), which serves the Ardos-patched Rust and GCC builds precompiled. It is updated on CI on every push.
 
 ## Build the image
 
@@ -265,9 +265,9 @@ A shared library and a program that links it, then the sysroot tree and the Squa
 
 ## Next steps
 
-- Boot a kernel, initramfs, and ROM together in QEMU with [Run the image in a virtual machine](/ardos-packer2/how-to/run-vm/).
-- Add another package, or wrap an existing nixpkgs derivation, with [Add a package to an Ardos image](/ardos-packer2/how-to/add-package/).
-- Shape the resulting tree with [Assemble the system image](/ardos-packer2/how-to/assemble-image/).
-- See why paths are translated at all in [About the build pipeline](/ardos-packer2/explanation/build-pipeline/).
-- Check the full option surface in the [instance](/ardos-packer2/reference/instance/) and [builders](/ardos-packer2/reference/builders/) references.
+- Boot a kernel, initramfs, and ROM together in QEMU with [Run the image in a virtual machine](../how-to/run-vm).
+- Add another package, or wrap an existing nixpkgs derivation, with [Add a package to an Ardos image](../how-to/add-package).
+- Shape the resulting tree with [Assemble the system image](../how-to/assemble-image).
+- See why paths are translated at all in [About the build pipeline](../explanation/build-pipeline).
+- Check the full option surface in the [instance](../reference/instance) and [builders](../reference/builders) references.
 ../../../../../../

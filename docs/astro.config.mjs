@@ -5,7 +5,7 @@ import starlightThemeSix from '@six-tech/starlight-theme-six';
 
 const site = process.env.GITHUB_PAGES_SITE_URL;
 const base = process.env.GITHUB_PAGES_BASE || '/';
-const docsLink = `${base.replace(/\/$/, '')}/tutorials/first-build/`;
+const docsLink = `${base.replace(/\/$/, '')}/tutorials/first-build`;
 
 export default defineConfig({
   ...(site ? { site } : {}),
@@ -28,7 +28,7 @@ export default defineConfig({
       logo: { src: './src/assets/ardos-packer2.svg', alt: 'Ardos Packer 2' },
       plugins: [
         starlightThemeSix({
-          navLinks: [{ label: 'Docs', link: '/tutorials/first-build/' }],
+          navLinks: [{ label: 'Docs', link: '/tutorials/first-build' }],
           footerText: 'Built for & part of [Ardos OS](https://github.com/ardos-os)',
         }),
       ],
@@ -39,35 +39,35 @@ export default defineConfig({
         {
           label: 'Tutorials',
           items: [
-            { label: 'Build your first image', link: '/tutorials/first-build/' },
+            { label: 'Build your first image', link: '/tutorials/first-build' },
           ],
         },
         {
           label: 'How-to guides',
           items: [
-            { label: 'Add a package to an Ardos image', link: '/how-to/add-package/' },
-            { label: 'Use the Cachix binary cache', link: '/how-to/use-cachix/' },
-            { label: 'Assemble the system image', link: '/how-to/assemble-image/' },
-            { label: 'Run the image in a virtual machine', link: '/how-to/run-vm/' },
+            { label: 'Add a package to an Ardos image', link: '/how-to/add-package' },
+            { label: 'Use the Cachix binary cache', link: '/how-to/use-cachix' },
+            { label: 'Assemble the system image', link: '/how-to/assemble-image' },
+            { label: 'Run the image in a virtual machine', link: '/how-to/run-vm' },
           ],
         },
         {
           label: 'Reference',
           items: [
-            { label: 'Instance', link: '/reference/instance/' },
-            { label: 'Builders', link: '/reference/builders/' },
+            { label: 'Instance', link: '/reference/instance' },
+            { label: 'Builders', link: '/reference/builders' },
           ],
         },
         {
           label: 'Explanation',
           items: [
-            { label: 'About the build pipeline', link: '/explanation/build-pipeline/' },
+            { label: 'About the build pipeline', link: '/explanation/build-pipeline' },
           ],
         },
         {
           label: 'Contributing',
           items: [
-            { label: 'Repository commands', link: '/contributing/commands/' },
+            { label: 'Repository commands', link: '/contributing/commands' },
           ],
         },
       ],
