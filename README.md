@@ -9,11 +9,9 @@
 </p>
 
 <div align="center">
-  <a href="https://ardos-os.github.io/ardos-packer2">Documentation</a>
+  <a href="https://ardos-os.github.io/ardos-packer2/getting-started">Getting Started</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="https://github.com/ardos-os/ardos-packer2/issues/new">Issues</a>
-  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="https://github.com/ardos-os/ardos-packer2">Repository</a>
+  <a href="https://ardos-os.github.io/ardos-packer2/contributing/commands/">Contributing</a>
 </div>
 
 ### [Read the docs →](https://ardos-os.github.io/ardos-packer2/getting-started)
