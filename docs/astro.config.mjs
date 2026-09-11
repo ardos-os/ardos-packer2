@@ -10,6 +10,7 @@ const docsLink = `${base.replace(/\/$/, '')}/tutorials/first-build/`;
 export default defineConfig({
   ...(site ? { site } : {}),
   base,
+  trailingSlash: "never",
   vite: {
     build: {
       // Six 1.0.16 ships an invalid `:after :before` reset selector that

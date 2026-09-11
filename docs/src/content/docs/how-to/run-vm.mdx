@@ -13,7 +13,7 @@ Use this when you have the three boot artifacts, a kernel, an initramfs, and a R
 
 ## Before you start
 
-- A kernel, initramfs, and ROM. See the [builders reference](/ardos-packer2/reference/builders/) for `kernel`, `initrd`, and `rom`.
+- A kernel, initramfs, and ROM. See the [builders reference](../reference/builders/) for `kernel`, `initrd`, and `rom`.
 - QEMU with KVM enabled for your CPU. The launch script sets `accel=kvm`.
 - The `nbd` kernel module. The script provisions the system and user disks through `qemu-nbd`.
 - `sudo` access. Disk provisioning and mounting run as root.
@@ -111,6 +111,6 @@ The VM has no display attached; it exposes a SPICE socket instead. Connect a SPI
 
 ## Related guides
 
-- [Assemble the system image](/ardos-packer2/how-to/assemble-image/) to build the ROM this script copies.
-- [Add a package to an Ardos image](/ardos-packer2/how-to/add-package/) if the image needs new contents.
-- [Builders reference](/ardos-packer2/reference/builders/) for the `kernel`, `initrd`, and `rom` builders.
+- [Assemble the system image](../how-to/assemble-image/) to build the ROM this script copies.
+- [Add a package to an Ardos image](../how-to/add-package/) if the image needs new contents.
+- [Builders reference](../reference/builders/) for the `kernel`, `initrd`, and `rom` builders.
