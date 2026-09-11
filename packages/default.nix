@@ -3,6 +3,7 @@
   ap2,
   nixpkgs,
   crane ? null,
+  rust-overlay ? null,
 }: let
   mkPackagesForBuildPlatform = _buildName: buildPlatform: let
     buildSystem = buildPlatform.linuxTriple;
@@ -10,7 +11,7 @@
     targetPackagesByTriple =
       lib.mapAttrs' (
         _targetName: targetPlatform:
-          lib.nameValuePair targetPlatform.config ((import ../tests/fixtures/instance.nix) {inherit buildSystem targetPlatform nixpkgs ap2 crane;})
+          lib.nameValuePair targetPlatform.config ((import ../tests/fixtures/instance.nix) {inherit buildSystem targetPlatform nixpkgs ap2 crane rust-overlay;})
       )
       ap2.platforms;
 
@@ -31,6 +32,8 @@
             inherit sysroot;
           };
           "stdenv" = ardosPacker.crossPkgs.stdenv;
+          "rustc" = ardosPacker.crossPkgs.pkgsBuildBuild.rustc;
+          "rustc-cross" = ardosPacker.crossPkgs.pkgsBuildTarget.rustc;
           "hellolibrary" = hellolibrary;
           "hello" = hello;
           "glibcTest" = glibcTest;

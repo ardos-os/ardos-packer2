@@ -68,6 +68,7 @@ jobs:
         package:
           - hellolibrary
           - hello
+          - rustc-cross
           - ardos-rom
           - vm-run
     steps:

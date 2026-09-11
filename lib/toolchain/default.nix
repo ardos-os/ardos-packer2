@@ -17,9 +17,11 @@
   buildSystem,
   host,
   rustScript,
+  rust-overlay ? null,
   toolchainConfig ? {},
 }: let
   inherit (host) patchedNixpkgs;
+  rustConfig = import ../rust-config.nix;
 
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
   # Runs in preConfigure (i.e. inside configurePhase), which is AFTER
@@ -65,6 +67,72 @@
             }
         );
     };
+
+  rustNightlyOverlay = final: prev: {
+    rustc-unwrapped = prev.rustc-unwrapped.overrideAttrs (_old: {
+      version = rustConfig.version;
+      src = prev.fetchurl {
+        url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
+        hash = rustConfig.sourceHash;
+      };
+    });
+    rustc = prev.rustc.overrideAttrs (_old: {
+      version = rustConfig.version;
+      src = prev.fetchurl {
+        url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
+        hash = rustConfig.sourceHash;
+      };
+    });
+    rustPlatform = prev.makeRustPlatform {
+      cargo = prev.cargo;
+      rustc = final.rustc;
+    };
+  };
+
+  rustBinarySelection = final: prev: let
+    rustToolchain = final.rust-bin.nightly.${rustConfig.date}.default;
+    rustBootstrap =
+      rustToolchain
+      // {
+        stdenv = prev.stdenv;
+        llvmPackages = prev.llvmPackages;
+        llvm = prev.llvmPackages.llvm;
+        targetPlatforms = [];
+        targetPlatformsWithHostTools = [];
+        badTargetPlatforms = [];
+        meta =
+          (rustToolchain.meta or {})
+          // {
+            description = "Rust ${rustConfig.version} bootstrap toolchain";
+          };
+      };
+  in {
+    rustPackages = prev.rustPackages.overrideScope (_sFinal: _sPrev: {
+      rustc-unwrapped = rustBootstrap;
+      rustc = _sPrev.rustc.override {
+        rustc-unwrapped = _sFinal.rustc-unwrapped;
+        sysroot = null;
+      };
+      cargo = rustBootstrap;
+    });
+    rustPlatform = final.makeRustPlatform {
+      inherit (final) cargo;
+      rustc = final.rustc;
+    };
+  };
+
+  rustBinaryOverlays =
+    if rust-overlay == null
+    then []
+    else [rust-overlay.overlays.default rustBinarySelection];
+
+  bootstrapPkgs = import nixpkgs {
+    system = buildSystem;
+    overlays =
+      if rust-overlay == null
+      then []
+      else [rust-overlay.overlays.default];
+  };
 
   # Overlay to adapt Nixpkgs toolchain and packages for the Ardos target
   ardosOverlay = final: prev: let
@@ -146,13 +214,6 @@
           }
       }
     '';
-
-    # Build rustc with the Ardos target as a built-in (tier 3).
-    # The patch is applied inside rustPackages.overrideScope (below) to the
-    # scope's own rustc-unwrapped.  The top-level rustc/rustc-unwrapped attrs
-    # simply point at the scope's patched versions to avoid double-patching
-    # (which happens when both the top-level overlay and the scope override
-    # independently patch the same base derivation via splicing).
     ardosSetupHookDrv = let
       ardosEarlyInit = rustScript "ardos-setup-early-init" ../builder/setup/early-init.rs;
       ardosEarlyInitExe = "${ardosEarlyInit}/bin/ardos-setup-early-init";
@@ -203,6 +264,49 @@
       # this override.
       rustPackages = prev.rustPackages.overrideScope (_sFinal: sPrev: {
         rustc-unwrapped = sPrev.rustc-unwrapped.overrideAttrs (old: {
+          version = rustConfig.version;
+          src = prev.fetchurl {
+            url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
+            hash = rustConfig.sourceHash;
+          };
+          env =
+            (old.env or {})
+            // {
+              HOME = "/tmp";
+              CARGO_HOME = "/tmp/cargo";
+            };
+          postPatch =
+            prev.lib.replaceStrings ["mkdir .cargo"] ["mkdir -p .cargo"] (old.postPatch or "");
+          preConfigure =
+            ''
+              export HOME="$TMPDIR"
+              export CARGO_HOME="$TMPDIR/cargo"
+              mkdir -p "$CARGO_HOME"
+              export PATH="${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin:$PATH"
+            ''
+            + (old.preConfigure or "");
+          preBuild =
+            ''
+              export HOME="$TMPDIR"
+              export CARGO_HOME="$TMPDIR/cargo"
+              mkdir -p "$CARGO_HOME"
+              export PATH="${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin:$PATH"
+              export RUSTC="${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin/rustc"
+              export CARGO="${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin/cargo"
+            ''
+            + (old.preBuild or "");
+          configureFlags =
+            (map (flag:
+              if prev.lib.hasPrefix "--set=build.rustc=" flag
+              then "--set=build.rustc=${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin/rustc"
+              else if prev.lib.hasPrefix "--set=build.cargo=" flag
+              then "--set=build.cargo=${bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default}/bin/cargo"
+              else flag) (old.configureFlags or []))
+            ++ ["--set=rust.deny-warnings=false"];
+          nativeBuildInputs = map (input:
+            if (input.pname or "") == "rustc"
+            then bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default
+            else input) (old.nativeBuildInputs or []);
           postConfigure =
             (old.postConfigure or "")
             + ''
@@ -273,6 +377,7 @@
 in rec {
   buildPkgs = import patchedNixpkgs {
     system = buildSystem;
+    overlays = rustBinaryOverlays;
   };
 
   crossPkgs = let
@@ -292,5 +397,6 @@ in rec {
     binutils = crossPkgs.pkgsBuildTarget.bintools;
     glibc = crossPkgs.pkgsBuildTarget.glibc;
     bash = buildPkgs.pkgsBuildTarget.bash;
+    rustc = buildPkgs.pkgsBuildTarget.rustc;
   };
 }

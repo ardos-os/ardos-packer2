@@ -7,20 +7,20 @@
   nixpkgs,
   ap2,
   crane,
+  rust-overlay ? null,
 }: let
   probe = buildSystem: targetPlatform: let
     instance = ap2.init {
       inherit nixpkgs buildSystem targetPlatform;
+      inherit crane;
+      inherit rust-overlay;
       externalMappings = import ../tests/fixtures/glibcExternalMappings.nix;
     };
-    crossPkgs = instance.crossPkgs;
-    craneLib = crane.mkLib crossPkgs.pkgsBuildTarget;
   in {
     rustCheck =
-      instance.wrapDerivation (craneLib.buildPackage {
-        src = craneLib.cleanCargoSource ./rust-probe;
+      instance.buildArdosRustPackage {
+        src = instance.craneLib.cleanCargoSource ./rust-probe;
         strictDeps = true;
-      }) {
         runtimeLayout = [
           {
             source = "bin/rust-probe";

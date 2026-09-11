@@ -33,6 +33,7 @@ in rec {
   init = {
     nixpkgs,
     crane ? null,
+    rust-overlay ? null,
     ...
   } @ args: let
     lib = nixpkgs.lib;
@@ -41,7 +42,7 @@ in rec {
     toolchainConfig = args.toolchainConfig or {};
     host = import ./host {inherit nixpkgs;};
     toolchain = import ./toolchain {
-      inherit nixpkgs targetPlatform buildSystem host toolchainConfig;
+      inherit nixpkgs targetPlatform buildSystem host toolchainConfig rust-overlay;
       rustScript = import ./builder/rustScript.nix {
         buildPkgs = nixpkgs.legacyPackages.${buildSystem} or
           (throw "lib/default.nix: buildPkgs for ${buildSystem} not available; check that nixpkgs.legacyPackages.${buildSystem} is set");
