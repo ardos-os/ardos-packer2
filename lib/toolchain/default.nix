@@ -117,16 +117,9 @@
       };
       cargo = rustBootstrap;
     });
-    rustPlatform = final.makeRustPlatform {
-      inherit (final) cargo;
-      rustc = final.rustc;
-    };
   };
 
-  rustBinaryOverlays =
-    if rust-overlay == null
-    then []
-    else [rust-overlay.overlays.default rustBinarySelection];
+  rustBinaryOverlays = [];
 
   bootstrapPkgs = import nixpkgs {
     system = buildSystem;
@@ -335,6 +328,15 @@
       };
       rustc = final.rustPackages.rustc;
       rustc-unwrapped = final.rustPackages.rustc-unwrapped;
+
+      # The bootstrap toolchain does not provide a target-platform set that
+      # nixpkgs can use for cargo-auditable's platform check.
+      cargo-auditable = prev.cargo-auditable.overrideAttrs (_: {
+        meta.broken = true;
+      });
+      cargo-auditable-bootstrap = prev.cargo-auditable-bootstrap.overrideAttrs (_: {
+        meta.broken = true;
+      });
 
       bintools =
         if isCrossTool
