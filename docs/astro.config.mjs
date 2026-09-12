@@ -68,6 +68,7 @@ export default defineConfig({
           label: 'Contributing',
           items: [
             { label: 'Repository commands', link: '/contributing/commands/' },
+            { label: 'Commit messages', link: '/contributing/commit-messages/' },
           ],
         },
       ],

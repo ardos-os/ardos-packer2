@@ -18,19 +18,20 @@ The project documentation is a Starlight site in `docs/` (content under `docs/sr
 When you change user-visible behavior, update the matching page and its sidebar entry.
 
 - Tutorials
-  - [Build your first Ardos image](https://ardos-os.github.io/ardos-packer2/tutorials/first-build/)
+  - [Build your first Ardos image](docs/src/content/docs/tutorials/first-build.mdx)
 - How-to guides
-  - [Add a package to an Ardos image](https://ardos-os.github.io/ardos-packer2/how-to/add-package/)
-  - [Use the Cachix binary cache](https://ardos-os.github.io/ardos-packer2/how-to/use-cachix/)
-  - [Assemble the system image](https://ardos-os.github.io/ardos-packer2/how-to/assemble-image/)
-  - [Run the image in a virtual machine](https://ardos-os.github.io/ardos-packer2/how-to/run-vm/)
+  - [Add a package to an Ardos image](docs/src/content/docs/how-to/add-package.md)
+  - [Use the Cachix binary cache](docs/src/content/docs/how-to/use-cachix.md)
+  - [Assemble the system image](docs/src/content/docs/how-to/assemble-image.mdx)
+  - [Run the image in a virtual machine](docs/src/content/docs/how-to/run-vm.mdx)
 - Reference
-  - [Instance](https://ardos-os.github.io/ardos-packer2/reference/instance/) — `ap2.init` options
-  - [Builders](https://ardos-os.github.io/ardos-packer2/reference/builders/) — package builders and `runtimeLayout`
+  - [Instance](docs/src/content/docs/reference/instance.md) — `ap2.init` options
+  - [Builders](docs/src/content/docs/reference/builders.md) — package builders and `runtimeLayout`
 - Explanation
-  - [About the build pipeline](https://ardos-os.github.io/ardos-packer2/explanation/build-pipeline/) — why runtime paths are translated
+  - [About the build pipeline](docs/src/content/docs/explanation/build-pipeline.md) — why runtime paths are translated
 - Contributing
-  - [Repository commands](https://ardos-os.github.io/ardos-packer2/contributing/commands/)
+  - [Repository commands](docs/src/content/docs/contributing/commands.mdx)
+  - [Commit messages](docs/src/content/docs/contributing/commit-messages.mdx) — commit structure and style
 
 ## Build, Test, and Development Commands
 
@@ -59,4 +60,4 @@ Checks are declarative Nix builds rather than a host-language test runner. Name 
 
 ## Commit & Pull Request Guidelines
 
-Use concise imperative subjects, optionally prefixed with `fix:`, `build:`, or an area such as `vm:`. Keep commits focused. Pull requests should explain the behavior change, identify affected packages/checks, include test commands and results, and attach diagrams or screenshots when changing documentation or VM behavior. Update relevant README or module documentation alongside user-visible changes.
+Follow the [commit message guide](docs/src/content/docs/contributing/commit-messages.mdx). Keep the summary imperative and within 72 characters; an area tag may come first. Add a focused body that explains why the change was made. Keep commits atomic and focused on one logical change. Where possible, each commit should leave the repository in a valid state so it can be reverted without breaking the build or leaving incomplete code. Avoid "rebuild the world" commits that combine unrelated changes. Pull requests should explain the behavior change, identify affected packages and checks, include test commands and results, and attach diagrams or screenshots when changing documentation or VM behavior. Update relevant README or module documentation alongside user-visible changes.

@@ -1,0 +1,76 @@
+---
+title: Commit messages
+description: The commit-message conventions for contributing to Ardos Packer 2.
+---
+
+Commit messages record the context that a diff cannot show. They help
+contributors understand a change when they read the history later.
+
+## Structure
+
+Structure each commit message as follows:
+
+1. A brief summary of the change.
+2. The main description and reasoning.
+3. Links or references to related issues, when applicable.
+
+Separate each part with a blank line:
+
+```text
+area: Short explanation of the change
+
+Longer explanation of what changed and why. Mention behavior or interface
+changes when relevant, but keep the description focused on the reasoning.
+
+Closes #1234
+```
+
+You may start the first line with one lowercase tag, such as `lib:`, `vm:`,
+`docs:`, or `tests:`, to show which area the commit changes.
+
+## Summary line
+
+- Describe the change, rather than the issue or its benefits.
+- Write one sentence without a trailing period.
+- Keep it to 72 characters or fewer.
+- Use the imperative present tense: `Add package builder`, not `Added package builder`.
+- Use `&` instead of `and` when it helps keep the line within the limit.
+
+## Main description
+
+Explain what changed and why. Write for another contributor who may read the
+message months from now. The code and diff show how the change works, so use
+the body for its motivation, constraints, and behavior.
+
+Keep each line to 75 characters or fewer. There is no limit on the number of
+lines in the body. Use normal prose, punctuation, and capitalization.
+
+When reverting a commit, add the reason. The default message from `git revert`
+identifies the reverted commit but does not explain the decision.
+
+## Keep commits focused
+
+Keep each commit atomic and focused on one logical change. Where possible, every
+commit should leave the repository in a valid state so it can be reverted or
+rolled back without breaking the build or leaving incomplete code behind.
+
+Avoid "rebuild the world" commits that squash unrelated changes together. Split
+those changes into separate commits so each one is easier to review, revert, or
+cherry-pick.
+
+## References
+
+If a commit addresses an issue, use the repository's issue-closing syntax when
+available, for example:
+
+```text
+Closes #1234
+Fixes #1234
+```
+
+When committing code on behalf of someone else, preserve attribution with
+`--author` and add a sign-off with `--signoff`:
+
+```sh
+git commit -a --author "Joe Coder <joe@coder.org>" --signoff
+```
