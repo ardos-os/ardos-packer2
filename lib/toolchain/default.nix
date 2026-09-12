@@ -90,7 +90,7 @@
   };
 
   rustBinarySelection = final: prev: let
-    rustToolchain = final.rust-bin.nightly.${rustConfig.date}.default;
+    rustToolchain = bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default;
     rustBootstrap =
       rustToolchain
       // {
