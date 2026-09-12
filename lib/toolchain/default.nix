@@ -74,6 +74,7 @@
       src = prev.fetchurl {
         url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
         hash = rustConfig.sourceHash;
+        passthru.isReleaseTarball = true;
       };
     });
     rustc = prev.rustc.overrideAttrs (_old: {
@@ -81,6 +82,7 @@
       src = prev.fetchurl {
         url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
         hash = rustConfig.sourceHash;
+        passthru.isReleaseTarball = true;
       };
     });
     rustPlatform = prev.makeRustPlatform {
@@ -268,6 +270,7 @@
           src = prev.fetchurl {
             url = "https://static.rust-lang.org/dist/${rustConfig.date}/rustc-nightly-src.tar.gz";
             hash = rustConfig.sourceHash;
+            passthru.isReleaseTarball = true;
           };
           env =
             (old.env or {})
