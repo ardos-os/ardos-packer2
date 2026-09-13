@@ -22,6 +22,16 @@
 }: let
   inherit (host) patchedNixpkgs;
   rustConfig = import ../rust-config.nix;
+  withoutNightlyCvePatches = cargo:
+    cargo.overrideAttrs (old: {
+      # The nightly source already contains these fixes, but Nixpkgs'
+      # patches target the older standalone Cargo source layout.
+      patches = nixpkgs.lib.filter (
+        patch:
+          !(nixpkgs.lib.hasSuffix "-CVE-2026-5222.patch" (toString patch)
+            || nixpkgs.lib.hasSuffix "-CVE-2026-5223.patch" (toString patch))
+      ) (old.patches or []);
+    });
 
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
   # Runs in preConfigure (i.e. inside configurePhase), which is AFTER
@@ -118,7 +128,6 @@
       cargo = rustBootstrap;
     });
   };
-
 
   bootstrapPkgs = import nixpkgs {
     system = buildSystem;
@@ -327,6 +336,7 @@
       };
       rustc = final.rustPackages.rustc;
       rustc-unwrapped = final.rustPackages.rustc-unwrapped;
+      cargo = withoutNightlyCvePatches prev.cargo;
 
       # The bootstrap toolchain does not provide a target-platform set that
       # nixpkgs can use for cargo-auditable's platform check.
