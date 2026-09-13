@@ -119,7 +119,6 @@
     });
   };
 
-  rustBinaryOverlays = [];
 
   bootstrapPkgs = import nixpkgs {
     system = buildSystem;
@@ -382,7 +381,6 @@
 in rec {
   buildPkgs = import patchedNixpkgs {
     system = buildSystem;
-    overlays = rustBinaryOverlays;
   };
 
   crossPkgs = let
