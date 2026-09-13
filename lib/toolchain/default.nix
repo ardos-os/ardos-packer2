@@ -22,6 +22,12 @@
 }: let
   inherit (host) patchedNixpkgs;
   rustConfig = import ../rust-config.nix;
+  nightlyBootstrap = bootstrapPkgs.rust-bin.nightly.${rustConfig.date}.default;
+  nightlyBootstrapEnv = ''
+    export PATH="${nightlyBootstrap}/bin:$PATH"
+    export RUSTC="${nightlyBootstrap}/bin/rustc"
+    export CARGO="${nightlyBootstrap}/bin/cargo"
+  '';
   withoutNightlyCvePatches = cargo:
     cargo.overrideAttrs (old: {
       # The nightly source already contains these fixes, but Nixpkgs'
@@ -31,6 +37,15 @@
           !(nixpkgs.lib.hasSuffix "-CVE-2026-5222.patch" (toString patch)
             || nixpkgs.lib.hasSuffix "-CVE-2026-5223.patch" (toString patch))
       ) (old.patches or []);
+      nativeBuildInputs =
+        (nixpkgs.lib.filter (input: let
+          name = toString input;
+        in
+          !(nixpkgs.lib.hasInfix "-cargo-bootstrap-" name
+            || nixpkgs.lib.hasInfix "-rustc-bootstrap-wrapper-" name)) (old.nativeBuildInputs or []))
+        ++ [nightlyBootstrap];
+      preConfigure = nightlyBootstrapEnv + (old.preConfigure or "");
+      preBuild = nightlyBootstrapEnv + (old.preBuild or "");
     });
 
   # Helper to inject config.sub patching into a derivation's preConfigure phase.
