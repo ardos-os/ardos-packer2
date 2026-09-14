@@ -107,22 +107,21 @@ in
       rm -f "$SPICE_SOCK"
 
 
-      VIEWER_PID=""
+      QEMU_PID=""
       if command -v remote-viewer &>/dev/null; then
-        remote-viewer "spice+unix://$SPICE_SOCK" &
-        VIEWER_PID=$!
+
+        ${qemuBinary} -enable-kvm ${qemuCpuFlag} -smp "$SMP" -machine ${qemuMachine} -object "memory-backend-ram,id=pc.ram,size=$MEMORY" ${qemuExtraDevices} -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d &
+        QEMU_PID=$!
       fi
-      # shellcheck disable=SC2086
-      ${qemuBinary} -enable-kvm ${qemuCpuFlag} -smp "$SMP" -machine ${qemuMachine} -object "memory-backend-ram,id=pc.ram,size=$MEMORY" ${qemuExtraDevices} -display none -spice "unix=on,addr=$SPICE_SOCK,disable-ticketing=on,image-compression=off,gl=on" -device virtio-net-pci,netdev=net0 -netdev user,id=net0 -drive "if=virtio,file=$SYSTEM_DISK,format=qcow2" -drive "if=virtio,file=$USER_DISK,format=qcow2" -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=$OVMF_VARS_COPY" -serial stdio -boot d
+      remote-viewer "spice+unix://$SPICE_SOCK"
+      REMOTE_VIEWER_EXIT=$?
 
-      QEMU_EXIT=$?
-
-      if [ -n "$VIEWER_PID" ]; then
-        kill "$VIEWER_PID" 2>/dev/null || true
+      if [ -n "$QEMU_PID" ]; then
+        kill "$QEMU_PID" 2>/dev/null || true
       fi
 
-      echo "=== ardos-vm-run: QEMU exited with code $QEMU_EXIT ==="
-      exit $QEMU_EXIT
+      echo "=== ardos-vm-run: remote-viewer exited with code $REMOTE_VIEWER_EXIT ==="
+      exit $REMOTE_VIEWER_EXIT
     '';
 
     meta = {
