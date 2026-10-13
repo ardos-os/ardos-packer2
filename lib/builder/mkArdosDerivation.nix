@@ -170,22 +170,26 @@ in rec {
     };
 
   # The main package builder
-  mkArdosDerivation = {
-    pname,
-    version,
-    # List of { source, target } entries. Source is relative to $out.
-    # Sources ending with "/" are folder mappings.
-    runtimeLayout ? [],
-    ...
-  } @ args: let
-    # Strip ardos-specific attrs before forwarding to mkDerivation.
-    cleanArgs = removeAttrs args ["runtimeLayout"];
+  mkArdosDerivation = args: let
+    argsFunction =
+      if builtins.isFunction args
+      then args
+      else (_finalAttrs: args);
+  in
+    crossPkgs.stdenv.mkDerivation (finalAttrs: let
+      args = argsFunction finalAttrs;
+      inherit (args) pname version;
+      # List of { source, target } entries. Source is relative to $out.
+      # Sources ending with "/" are folder mappings.
+      runtimeLayout = args.runtimeLayout or [];
 
-    resolvedLayout = layoutListToLayout runtimeLayout;
-    layoutText = layoutListToText runtimeLayout;
+      # Strip ardos-specific attrs before forwarding to mkDerivation.
+      cleanArgs = removeAttrs args ["runtimeLayout"];
 
-    # Build the derivation using our target stdenv
-    drv = crossPkgs.stdenv.mkDerivation (cleanArgs
+      resolvedLayout = layoutListToLayout runtimeLayout;
+      layoutText = layoutListToText runtimeLayout;
+    in
+      cleanArgs
       // {
         # The ld wrapper handles RPATH translation at link time — patchelf is
         # redundant and would interfere with the translated paths.
@@ -240,32 +244,35 @@ in rec {
               cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
             fi
           '';
-      });
-  in
-    drv.overrideAttrs (old: {
-      passthru =
-        old.passthru or {
-          ardos = {
-            runtimeLayout = runtimeLayout;
+        passthru =
+          (args.passthru or {})
+          // {
+            ardos = {
+              inherit runtimeLayout;
+            };
           };
-        };
-    });
+      });
 
   # Identical to mkArdosDerivation but uses clangStdenv instead of stdenv.
   # Required for packages that need clang as the cross compiler (e.g. systemd
   # BPF compilation, which invokes clang -target bpf directly).
-  mkArdosDerivationClang = {
-    pname,
-    version,
-    runtimeLayout ? [],
-    ...
-  } @ args: let
-    cleanArgs = removeAttrs args ["runtimeLayout"];
+  mkArdosDerivationClang = args: let
+    argsFunction =
+      if builtins.isFunction args
+      then args
+      else (_finalAttrs: args);
+  in
+    crossPkgs.clangStdenv.mkDerivation (finalAttrs: let
+      args = argsFunction finalAttrs;
+      inherit (args) pname version;
+      runtimeLayout = args.runtimeLayout or [];
 
-    resolvedLayout = layoutListToLayout runtimeLayout;
-    layoutText = layoutListToText runtimeLayout;
+      cleanArgs = removeAttrs args ["runtimeLayout"];
 
-    drv = crossPkgs.clangStdenv.mkDerivation (cleanArgs
+      resolvedLayout = layoutListToLayout runtimeLayout;
+      layoutText = layoutListToText runtimeLayout;
+    in
+      cleanArgs
       // {
         dontPatchELF = true;
         dontShrinkRpath = true;
@@ -309,14 +316,12 @@ in rec {
               cp "$ARDOS_RUNTIME_MAP" $out/nix-support/ardos-runtime-map
             fi
           '';
-      });
-  in
-    drv.overrideAttrs (old: {
-      passthru =
-        old.passthru or {
-          ardos = {
-            runtimeLayout = runtimeLayout;
+        passthru =
+          (args.passthru or {})
+          // {
+            ardos = {
+              inherit runtimeLayout;
+            };
           };
-        };
-    });
+      });
 }

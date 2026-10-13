@@ -29,6 +29,11 @@ Rules:
 
 Builds a package with `crossPkgs.stdenv.mkDerivation` and records its runtime layout.
 
+The argument can be an attribute set, or a function that receives the
+`stdenv.mkDerivation`-style `finalAttrs` attribute set and returns the build
+attributes. The legacy attribute-set form is equivalent to
+`(_finalAttrs: { ... })` and remains supported.
+
 | Argument                     | Type   | Default  | Description                                                                       |
 | ---------------------------- | ------ | -------- | --------------------------------------------------------------------------------- |
 | `pname`                      | string | required | Package name                                                                      |
@@ -67,6 +72,17 @@ mkArdosDerivation {
     runHook postInstall
   '';
 }
+```
+
+The function form is useful when one attribute depends on another:
+
+```nix
+mkArdosDerivation (finalAttrs: {
+  pname = "hello";
+  version = "0.1.0";
+  passthru.packageLabel = "${finalAttrs.pname}-${finalAttrs.version}";
+  runtimeLayout = [];
+});
 ```
 
 ## mkArdosDerivationClang
